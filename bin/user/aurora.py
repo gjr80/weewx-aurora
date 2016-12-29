@@ -28,7 +28,7 @@ import datetime
 import syslog
 import time
 
-from subprocess import Popen, PIPE
+from subprocess import Popen, PIPE, STDOUT
 
 # weewx imports
 import weewx.drivers
@@ -135,21 +135,19 @@ class Aurora(weewx.drivers.AbstractDevice):
         """Initialise the inverter object."""
         
         self.model = stn_dict.get('model', 'Aurora')
-## change to logdbg
-        loginf('%s driver version is %s' % (self.model, DRIVER_VERSION))
+        logdbg('%s driver version is %s' % (self.model, DRIVER_VERSION))
         self.port = stn_dict.get('port', '/dev/ttyUSB0')
-        self.max_tries = stn_dict.get('max_tries', 3)
-        self.polling_interval = stn_dict.get('loop_interval', 10)
-## change to logdbg
-        loginf('inverter will be polled on port %s every %d seconds' % (self.port, self.polling_interval))
+        self.max_tries = int(stn_dict.get('max_tries', 3))
+        self.polling_interval = int(stn_dict.get('loop_interval', 10))
+        logdbg('inverter will be polled on port %s every %d seconds' % (self.port, self.polling_interval))
         
         # contruct the stem of our aurora command
         self.aurora_cmd = AURORA_CMD
-        self.address = stn_dict.get('address', 2)
-        self.aurora_retries = stn_dict.get('aurora_retries', 100)
+        self.address = int(stn_dict.get('address', 2))
+        self.aurora_retries = int(stn_dict.get('aurora_retries', 10))
         # Time to wait to lock serial port in ms. Valid values are 10 to 30000. 
         # Value of 0 will cause there to be one try to lock the serial port.
-        self.lock_wait = stn_dict.get('lock_wait', 10)
+        self.lock_wait = int(stn_dict.get('lock_wait', 10))
         if self.lock_wait < 10 and self.lock_wait != 0.0:
             self.lock_wait = 10
             logdbg('wait time for serial port lock out of range (10-30000ms), using 10ms')
@@ -213,7 +211,7 @@ class Aurora(weewx.drivers.AbstractDevice):
                                                  last_energy=self.last_energy,
                                                  ts=_ts,
                                                  field_map=self.field_map)
-                    self.last_energy = packet['dayEnergy']
+                    self.last_energy = packet['dayEnergy'] if 'dayEnergy' in packet else None
                     yield packet
                     # wait until its time to poll again
                     while int(time.time()) % self.polling_interval != 0:
@@ -232,12 +230,11 @@ class Aurora(weewx.drivers.AbstractDevice):
         inverter response is returned.
         """
         
-        record = dict()
         try:
             # construct the command string to use
             cmd = ' '.join([self.aurora_cmd, self.cmd_preamble,
                             args, self.port])
-            p = Popen(cmd, shell=True, stdout=PIPE)
+            p = Popen(cmd, shell=True, stdout=PIPE, stderr=STDOUT)
             o = p.communicate()[0]
         except (ValueError, IOError, KeyError), e:
             logerr('send_command failed: %s' % e)
@@ -260,7 +257,14 @@ class Aurora(weewx.drivers.AbstractDevice):
         response = self.send_command(_args)
         # was the response complete ie does it end with OK?
         if response.strip()[-2:] != 'OK':
-            raise IOError('Invalid or incomplete response received from inverter.')
+            # it could be because the inverter is asleep
+            if response.upper().find("ERROR: RECEIVED BAD RETURN CODE") > 0:
+                # looks like the inverter is asleep, either way we can't get 
+                # any response so return None
+                return None
+            else:
+                # could be an incomplete response, so eaise an error
+                raise IOError('Invalid or incomplete response received from inverter.')
         return response.strip()
         
     def data_to_packet(self, data, ts, last_energy=None, 
@@ -271,44 +275,50 @@ class Aurora(weewx.drivers.AbstractDevice):
         names and values. Then maps aurora fields to weewx fields.
         """
         
-        # Process our raw data string and convert to a dict of aurora field 
-        # names and values.
-        
-        # split our raw data string into individual data fields
-        _data = raw_data.split()
-        # pop off the trailing 'OK'
-        _data.pop()
-        # pop off our date-time string
-        _data.pop(0)
-        # convert our elements to floats
-        _data = [float(x) for x in _data]
-        # pair up with our field list
-        data = dict(zip(self.fields, _data))
-        
-        # Take the aurora data dict and map to a weewx packet dict
+        # initialise a packet
         _packet = {}
         # add in dateTime
         _packet['dateTime'] = ts
-        # add usUnits field, aurora returns metric data
+        # and usUnits
         _packet['usUnits'] = weewx.METRIC
-        for weewx_field, data_field in DEFAULT_MAP.iteritems():
-            if data_field in data:
-                _packet[weewx_field] = data[data_field]
-        # A few fields require some special attention.
-        # dayEnergy is cumulative by day but we need incremental values so we 
-        # need to calculate it based on the last cumulative value
-        _packet['energy'] = self.calculate_energy(_packet['dayEnergy'], 
-                                                  last_energy)
-        # scale our resistance, its in Mohms but we need ohms
-        try:
-            _packet['isoResistance'] *= 1000000.0
-        except KeyError:
-            # there is no isoResistance field so leave it
-            pass
-        except TypeError:
-            # isoResitance exists but is not numeric
-            _packet['isoResistance'] = None
-        
+
+        # Do we have any data? If the inverter is asleep or otherwise 
+        # uncontactable data will be None
+        if data is not None:
+            # Process our raw data string and convert to a dict of aurora field 
+            # names and values.
+            
+            # split our raw data string into individual data fields
+            _data = raw_data.split()
+            # pop off the trailing 'OK'
+            _data.pop()
+            # pop off our date-time string
+            _data.pop(0)
+            # convert our elements to floats
+            _data = [float(x) for x in _data]
+            # pair up with our field list
+            data = dict(zip(self.fields, _data))
+            
+            # Take the aurora data dict and map to a weewx packet dict
+            for weewx_field, data_field in DEFAULT_MAP.iteritems():
+                if data_field in data:
+                    _packet[weewx_field] = data[data_field]
+            # A few fields require some special attention.
+            # dayEnergy is cumulative by day but we need incremental values so we 
+            # need to calculate it based on the last cumulative value
+            _packet['energy'] = self.calculate_energy(_packet['dayEnergy'], 
+                                                      last_energy)
+            # scale our resistance, its in Mohms but we need ohms
+            try:
+                _packet['isoResistance'] *= 1000000.0
+            except KeyError:
+                # there is no isoResistance field so leave it
+                pass
+            except TypeError:
+                # isoResitance exists but is not numeric
+                _packet['isoResistance'] = None
+        # whether data was None or contained data _packet has our result, so 
+        # return it
         return _packet
 
     @property
