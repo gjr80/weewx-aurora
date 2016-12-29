@@ -229,10 +229,28 @@ class PVOutputThread(weewx.restx.RESTThread):
                             'extended4': 'v10',
                             'extended5': 'v11',
                             'extended6': 'v12'}
+        # addstatus service requires data in at least one of the following 
+        # fields
+        REQUIRED_PARAMS = ['v1', 'v2', 'v3', 'v4']
 
         # Get any extra data (that is not in record) required to post a status
         # to PVOutput. In this case we need today's cumulative energy.
         _full_record = self.get_record(record, dbmanager)
+        
+        # Do we have the minimum required fields to post a status ? Probably 
+        # should do this in skip_record() but to do so would require knowledge 
+        # of the record being posted and that would mean overriding run_loop() 
+        # just to change 1 line of code.
+        for rec_field, api_field in ADDSTATUS_PARAMS.iteritems():
+            if api_field in REQUIRED_PARAMS:
+                if rec_field in record:
+                    # we have one, break so we can process the record
+                    break
+        else:
+            # if we got here it is becase we have none of the required fields 
+            # therefore we cannot post so just return
+            return
+        
         # convert to metric if necessary
         _metric_record = weewx.units.to_METRIC(_full_record)
 
