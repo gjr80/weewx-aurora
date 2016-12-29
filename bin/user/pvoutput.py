@@ -243,7 +243,7 @@ class PVOutputThread(weewx.restx.RESTThread):
         # just to change 1 line of code.
         for rec_field, api_field in ADDSTATUS_PARAMS.iteritems():
             if api_field in REQUIRED_PARAMS:
-                if rec_field in record:
+                if rec_field in record and record[rec_field] is not None:
                     # we have one, break so we can process the record
                     break
         else:
