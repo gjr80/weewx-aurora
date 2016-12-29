@@ -22,7 +22,25 @@
 # Revision History
 #  6 December 2016     v0.1    - initial release
 #
-"""A weewx driver for the Power One Aurora PVI-6000 inverter."""
+""" A weewx driver for the Power One Aurora PVI-6000 inverter.
+
+    Uses the aurora program (http://www.curtronics.com/Solar/AuroraData.html) 
+    v1.9.3 to communicate with a Power One Aurora inverter and produce inverter 
+    data for use with weewx. The driver emits 'loop' packets only and relies on 
+    weewx to use software archive record generation. A number of inverter 
+    'properties' have been include for use with wee_device. The driver can be 
+    exercised without the ovrhead of running weewx by using the following 
+    command:
+    
+    PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/aurora.py
+    
+    When used from the command line appending the --version option to the above 
+    command will display the driver version number.
+    
+    Note that this weewx driver was produced to operate with a Power One Aurora 
+    PVI-6000 inverter circa 2011. It may not work correctly, or may need fine 
+    tuning to work, with other Aurora inverters.
+"""
 from __future__ import with_statement
 import datetime
 import syslog
@@ -139,7 +157,8 @@ class Aurora(weewx.drivers.AbstractDevice):
         self.port = stn_dict.get('port', '/dev/ttyUSB0')
         self.max_tries = int(stn_dict.get('max_tries', 3))
         self.polling_interval = int(stn_dict.get('loop_interval', 10))
-        logdbg('inverter will be polled on port %s every %d seconds' % (self.port, self.polling_interval))
+        logdbg('inverter will be polled on port %s every %d seconds' % (self.port, 
+                                                                        self.polling_interval))
         
         # contruct the stem of our aurora command
         self.aurora_cmd = AURORA_CMD
@@ -228,6 +247,14 @@ class Aurora(weewx.drivers.AbstractDevice):
         
         Uses aurora program to send commands to the Aurora inverter. The raw 
         inverter response is returned.
+        
+        Input:
+            args: Arguments tha define what data is being sought from the 
+                  inverter. Does not include arguments that specify port, wait 
+                  times etc. String, may be empty, default is empty string.
+        
+        Returns:
+            The raw response from the aurora program as a string. 
         """
         
         try:
@@ -245,7 +272,20 @@ class Aurora(weewx.drivers.AbstractDevice):
         
         Uses send_command to send a command to the inverter and checks the 
         returned data is complete. Raw data is returned stripped of any 
-        leading or training whitespace.
+        leading or trailing whitespace.
+        
+        Input:
+            col: Whether to obtain aurora data in columns (ie easiest for 
+                 parsing) or as formatted output. Boolean, default is True.
+        
+        Returns:
+            Raw response from the inverter to the request. Two basic checks are 
+            performed on the inverters response (1) the inverters response is 
+            checked for completeness (ie it ends with 'OK') and (2) a check is 
+            made for a 'bad response' from the inverter (this is the closest we 
+            can get to checking if the inverter is asleep), in such cases None 
+            is returned. Inverter response is stripped of any leding/trailling 
+            whitespace. String, can be None.
         """
         
         # Construct our aurora argument list based on the data sets requested. 
@@ -271,8 +311,30 @@ class Aurora(weewx.drivers.AbstractDevice):
                        field_map=DEFAULT_MAP):
         """Parse raw data string from inverter and create a weewx loop packet.
         
-        Parses raw data string from inverters and produces a dict of field 
-        names and values. Then maps aurora fields to weewx fields.
+        Parses raw data string from inverter, maps aurora fields to weewx 
+        fields and produces a dict of field names and values. If data is None 
+        then the returned packet has None against all fields except dateTime 
+        and usUnits.
+        
+        Inputs:
+            data:        The data string to be parsed. String, may be None.
+            ts:          The timestamp to be used for the packet. Normally this 
+                         would be the timestamp provided by the inverter, but 
+                         since the inverter takes some (variable number of) 
+                         seconds to respond and since setting the time of the 
+                         inverter can destructively affect some inverter data, 
+                         this driver uses the time at which the request is made 
+                         to the inverter as the packet timestamp. Numeric.
+            last_energy: The energy generated value for the last packet. Used 
+                         when enegry is provided as a cumulative value so that 
+                         incremental energy per packet can be determined. 
+                         Numeric, may be None.
+            field_map:   The mapping of weewx archive fields to aurora data 
+                         fields. Dict, defaults to DEFAULT_MAP.
+                         
+        Returns:
+            A dictionary of field/value pairs able to be used as a weewx loop 
+            packet.
         """
         
         # initialise a packet
@@ -300,12 +362,12 @@ class Aurora(weewx.drivers.AbstractDevice):
             data = dict(zip(self.fields, _data))
             
             # Take the aurora data dict and map to a weewx packet dict
-            for weewx_field, data_field in DEFAULT_MAP.iteritems():
+            for weewx_field, data_field in field_map.iteritems():
                 if data_field in data:
                     _packet[weewx_field] = data[data_field]
             # A few fields require some special attention.
-            # dayEnergy is cumulative by day but we need incremental values so we 
-            # need to calculate it based on the last cumulative value
+            # dayEnergy is cumulative by day but we need incremental values so 
+            # we need to calculate it based on the last cumulative value
             _packet['energy'] = self.calculate_energy(_packet['dayEnergy'], 
                                                       last_energy)
             # scale our resistance, its in Mohms but we need ohms
@@ -317,8 +379,13 @@ class Aurora(weewx.drivers.AbstractDevice):
             except TypeError:
                 # isoResitance exists but is not numeric
                 _packet['isoResistance'] = None
-        # whether data was None or contained data _packet has our result, so 
-        # return it
+        else:
+            # if data is None (likely the inverter is asleep) we should return
+            # None for all inverter data fields
+            for weewx_field in field_map:
+                _packet[weewx_field] = None
+        # irrespective of whether data was None or contained data, _packet has 
+        # our result and we should return it
         return _packet
 
     @property
