@@ -17,13 +17,13 @@
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see http://www.gnu.org/licenses/.
 #
-# Version: 0.2.0                                    Date: 29 January 2017
+# Version: 0.2.0                                    Date: 31 January 2017
 #
 # Revision History
-#   29 January 2017     v0.2.0      - no longer use the aurora application for
+#   31 January 2017     v0.2.0      - no longer use the aurora application for
 #                                     interrogating the inverter, communication
 #                                     with the inverter is now performed
-#                                     directly via the AuroraInverter class.
+#                                     directly via the AuroraInverter class
 #   1 January 2017      v0.1.0      - initial release
 #
 """ A weewx driver for the Power One Aurora PVI-6000 inverter."""
@@ -494,7 +494,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
     def get_dsp(self):
         """Get DSP data."""
 
-        manifest = {d for d in self.inverter.commands and d['cmd'] == 59}
+        manifest = dict((k,v) for k,v in self.inverter.commands.iteritems() if v['cmd'] == 59)
 
         _dsp = {}
         for reading, params in manifest.iteritems():
@@ -722,22 +722,22 @@ class AuroraInverter(object):
         _b_padded = self.pad(_b, 8)
         # add the CRC
         _data_with_crc = _b_padded + self.word2struct(self.crc16(_b_padded))
-        print "_data_with_crc=%s" % binascii.hexlify(_data_with_crc)
         # now send the data retrying up to max_tries times
         for count in xrange(max_tries):
             logdbg2("sent %s" % binascii.hexlify(_data_with_crc))
-            self.write(_data_with_crc)
-            # wait before reading
-            time.sleep(self.command_delay)
-            # look for the response
-            _resp = self.read_with_crc()
-            decode_fn = self.commands[reading]['fn']
-            return decode_fn(_resp)
+            try:
+                self.write(_data_with_crc)
+                # wait before reading
+                time.sleep(self.command_delay)
+                # look for the response
+                _resp = self.read_with_crc()
+                decode_fn = self.commands[reading]['fn']
+                return decode_fn(_resp)
+            except weewx.WeeWxIOError:
+                pass
             logdbg("send_cmd_with_crc: try #%d" % (count + 1,))
-### this needs to be tidied up - max reties error
-        logerr("Unable to send data and decode response")
-        raise weewx.WeeWxIOError("Unable to send data and decode response")
-        return None
+        logerr("Unable to send or recive data to/from the inverter")
+        raise weewx.WeeWxIOError("Unable to send or recive data to/from the inverter")
 
     def read_with_crc(self, bytes=8):
         """Read an inverter response with CRC and return the data.
@@ -818,8 +818,7 @@ class AuroraInverter(object):
         if crc == crc_bytes:
             return data
         else:
-### need to fix the formatting of this message
-            logerr("aurora: Received data failed CRC check")
+            logerr("Received data failed CRC check")
             logerr("  ***** buffer=%s data=%s CRC bytes=%s expected CRC=%s" % (buffer,
                                                                                data,
                                                                                crc_bytes,
@@ -1061,7 +1060,7 @@ class AuroraInverter(object):
         """
 
         try:
-            _int = v[2] * 2**24 + v[3] * 2**16 + v[4] * 2**8 + v[5]
+            _int = ord(v[2]) * 2**24 + ord(v[3]) * 2**16 + ord(v[4]) * 2**8 + ord(v[5])
             return ResponseTuple(ord(v[0]), ord(v[1]), _int)
         except (IndexError, TypeError):
             return ResponseTuple(None, None, None)
@@ -1175,21 +1174,37 @@ if __name__ == '__main__':
                       metavar="CONFIG_FILE",
                       help="Use configuration file CONFIG_FILE.")
     parser.add_option('--version', dest='version', action='store_true',
-                      help='Display driver version')
+                      help='Display driver version.')
+    parser.add_option('--loop', dest='loop', action='store_true',
+                      help='Output inverter loop data.')
+    parser.add_option('--dump', dest='dump', action='store_true',
+                      help='Dump inverter readings to screen.')
     (options, args) = parser.parse_args()
-
-    # get config_dict to use
-    config_path, config_dict = weecfg.read_config(options.config_path, args)
-    print "Using configuration file %s" % config_path
 
     if options.version:
         print "Aurora driver version %s" % DRIVER_VERSION
         exit(0)
 
+    # get config_dict to use
+    config_path, config_dict = weecfg.read_config(options.config_path, args)
+    print "Using configuration file %s" % config_path
+
     # get a config dict for the inverter
     aurora_dict = config_dict.get('Aurora', None)
     # get an AuroraDriver object
     inverter = AuroraDriver(aurora_dict)
-    while True:
-        for packet in inverter.genLoopPackets():
-            print "LOOP:  ", timestamp_to_string(packet['dateTime']), sort(packet)
+    if options.loop:
+        while True:
+            for packet in inverter.genLoopPackets():
+                print "LOOP:  ", timestamp_to_string(packet['dateTime']), sort(packet)
+        exit(0)
+
+    if options.dump:
+        print "%17s: %s" % ("Part Number", inverter.part_number)
+        print "%17s: %s" % ("Version", inverter.version)
+        print "%17s: %s" % ("Serial Number", inverter.serial_number)
+        print "%17s: %s" % ("Manufacture Date", inverter.manufacture_data)
+        print "%17s: %s" % ("Firmware Release", inverter.firmware_rel)
+        for reading in inverter.manifest:
+            print "%17s: %s" % (reading, inverter.do_cmd(reading).data)
+        exit(0)
