@@ -17,9 +17,14 @@ import locale
 # http://docs.python.org/2/library/locale.html#locale.setlocale
 locale.setlocale(locale.LC_ALL, '')
 
+
+# ============================================================================
+#                  Aurora units definitions and functions
+# ============================================================================
+
 import weewx.units
 
-# creat groups for frequency and resistance
+# create groups for frequency and resistance
 weewx.units.USUnits['group_frequency'] = 'hertz'
 weewx.units.MetricUnits['group_frequency'] = 'hertz'
 weewx.units.MetricWXUnits['group_frequency'] = 'hertz'
@@ -27,13 +32,13 @@ weewx.units.USUnits['group_resistance'] = 'ohm'
 weewx.units.MetricUnits['group_resistance'] = 'ohm'
 weewx.units.MetricWXUnits['group_resistance'] = 'ohm'
 
-# set default formats and labels
+# set default formats and labels for frequency and resistance
 weewx.units.default_unit_format_dict['hertz'] = '%.1f'
 weewx.units.default_unit_label_dict['hertz'] = ' ohm'
 weewx.units.default_unit_format_dict['ohm'] = '%.1f'
 weewx.units.default_unit_label_dict['ohm'] = ' ohm'
 
-# set up our conversion functions
+# define conversion functions for resistance
 weewx.units.conversionDict['ohm'] = {'kohm': lambda x : x / 1000.0,
                                      'Mohm': lambda x : x / 1000000.0}
 weewx.units.conversionDict['kohm'] = {'ohm': lambda x : x * 1000.0,
@@ -41,7 +46,7 @@ weewx.units.conversionDict['kohm'] = {'ohm': lambda x : x * 1000.0,
 weewx.units.conversionDict['Mohm'] = {'ohm': lambda x : x * 1000000.0,
                                       'kohm': lambda x : x * 1000.0}
 
-# assign our database fields to groups
+# assign database fields to groups
 weewx.units.obs_group_dict['string1Voltage'] = 'group_volt'
 weewx.units.obs_group_dict['string1Current'] = 'group_amp'
 weewx.units.obs_group_dict['string1Power'] = 'group_power'

@@ -68,7 +68,7 @@ def logerr(msg):
 
 
 def loader(config_dict, engine):  # @UnusedVariable
-    return AuroraDriver(**config_dict[DRIVER_NAME])
+    return AuroraDriver(config_dict[DRIVER_NAME])
 
 
 # ============================================================================
@@ -327,7 +327,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         # get an AuroraInverter object
         self.inverter = AuroraInverter(self.port)
         # open up the connection to the inverter
-        self.open_port()
+        self.openPort()
 
         # set a number of properties based on system data from the inverter
         self._setup()
@@ -339,12 +339,12 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         # Build the Aurora reading to loop packet field map.
         (self.field_map, self.manifest) = self._build_map_manifest(aurora_dict)
 
-    def open_port(self):
+    def openPort(self):
         """Open up the connection to the inverter."""
 
         self.inverter.open_port()
 
-    def close_port(self):
+    def closePort(self):
         """Close the connection to the inverter."""
 
         self.inverter.close_port()
@@ -411,7 +411,6 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
 
         # map raw packet readings to loop packet fields using the field map
         _packet = {}
-        loginf("field_map=%s" % self.field_map)
         for dest, src in self.field_map.iteritems():
             if src in raw_packet:
                 _packet[dest] = raw_packet[src]
@@ -443,7 +442,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
 
         return self.inverter.send_cmd_with_crc(reading, globall=globall)
 
-    def get_inverter_time(self):
+    def getTime(self):
         """Get inverter system time and return as an epoch timestamp."""
 
         return self.do_cmd('timeDate').data
@@ -500,6 +499,12 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         for reading, params in manifest.iteritems():
             _dsp[reading] = self.do_cmd(reading, globall=1).data
         return _dsp
+
+    @property
+    def hardware_name(self):
+        """Get the name by which this hardware is known."""
+
+        return self.model
 
     @staticmethod
     def calculate_energy(newtotal, oldtotal):
@@ -656,8 +661,8 @@ class AuroraInverter(object):
         try:
             N = self.serial_port.write(data)
         except serial.serialutil.SerialException, e:
-            print "SerialException on write."
-            print "   ****  %s" % e
+            logerr("SerialException on write.")
+            logerr("  ***** %s" % e)
             # reraise as a weewx error I/O error:
             raise weewx.WeeWxIOError(e)
         # Python version 2.5 and earlier returns 'None', so it cannot be used
@@ -683,9 +688,9 @@ class AuroraInverter(object):
         try:
             _buffer = self.serial_port.read(bytes)
         except serial.serialutil.SerialException, e:
-            print "SerialException on read."
-            print "   ****  %s" % e
-            print "   ****  Is there a competing process running??"
+            logerr("SerialException on read.")
+            logerr("  ***** %s" % e)
+            logerr("  ***** Is there a competing process running??")
             raise
             # reraise as a weewx error I/O error:
             raise weewx.WeeWxIOError(e)
@@ -724,7 +729,7 @@ class AuroraInverter(object):
         _data_with_crc = _b_padded + self.word2struct(self.crc16(_b_padded))
         # now send the data retrying up to max_tries times
         for count in xrange(max_tries):
-            logdbg2("sent %s" % binascii.hexlify(_data_with_crc))
+            logdbg2("sent %s" % format_byte_to_hex(_data_with_crc))
             try:
                 self.write(_data_with_crc)
                 # wait before reading
@@ -755,7 +760,7 @@ class AuroraInverter(object):
         # read the response
         _response = self.read(bytes=bytes)
         # log the hex bytes received
-        logdbg2("read %s" % binascii.hexlify(_response))
+        logdbg2("read %s" % format_byte_to_hex(_response))
         # check the CRC and strip out the pay load
         return self.strip_crc16(_response)
 
@@ -818,12 +823,12 @@ class AuroraInverter(object):
         if crc == crc_bytes:
             return data
         else:
-            logerr("Received data failed CRC check")
-            logerr("  ***** buffer=%s data=%s CRC bytes=%s expected CRC=%s" % (buffer,
-                                                                               data,
-                                                                               crc_bytes,
-                                                                               crc))
-            raise weewx.CRCError("Received data failed CRC check")
+            logerr("Inverter response failed CRC check:")
+            logerr("  ***** response=%s" % (format_byte_to_hex(buffer)))
+            logerr("  *****     data=%s        CRC=%s  expected CRC=%s" % (format_byte_to_hex(data),
+                                                                           format_byte_to_hex(crc_bytes),
+                                                                           format_byte_to_hex(crc)))
+            raise weewx.CRCError("Inverter response failed CRC check")
 
     @staticmethod
     def word2struct(i):
@@ -1091,6 +1096,24 @@ class AuroraInverter(object):
         except (IndexError, TypeError):
             return ResponseTuple(None, None, None)
 
+
+# ============================================================================
+#                             Utility functions
+# ============================================================================
+
+
+def format_byte_to_hex(bytes):
+    """Format a sequence of bytes as a string of space separated hex bytes.
+
+        Input:
+            bytes: A string or sequence containing the bytes to be formatted.
+
+        Returns:
+            A string of space separated hex digit pairs representing the input
+            byte sequence.
+    """
+
+    return ' '.join(['%02X' % ord(b) for b in bytes])
 
 # ============================================================================
 #                            class ResponseTuple
