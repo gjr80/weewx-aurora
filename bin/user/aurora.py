@@ -163,7 +163,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
               27: 'Executing Autotest',
               30: 'Waiting Sun',
               31: 'Temperature Fault',
-              32: 'Fan Staucked',
+              32: 'Fan Stacked',
               33: 'Int. Com. Fault',
               34: 'Slave Insertion',
               35: 'DC Switch Open',
@@ -294,12 +294,12 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
              48: {'description': 'UTH',               'code': 'E033'},
              49: {'description': 'Interlock fail',    'code': 'E034'},
              50: {'description': 'Remote Off',        'code': 'E035'},
-             51: {'description': 'Vout Avg errror',   'code': 'E036'},
+             51: {'description': 'Vout Avg error',    'code': 'E036'},
              52: {'description': 'Battery low',       'code': 'W012'},
              53: {'description': 'Clk fail',          'code': 'W013'},
              54: {'description': 'Input UC',          'code': 'E037'},
              55: {'description': 'Zero Power',        'code': 'W014'},
-             56: {'description': 'Fan Stucked',       'code': 'E038'},
+             56: {'description': 'Fan Stuck',         'code': 'E038'},
              57: {'description': 'DC Switch Open',    'code': 'E039'},
              58: {'description': 'Tras Switch Open',  'code': 'E040'},
              59: {'description': 'AC Switch Open',    'code': 'E041'},
@@ -460,7 +460,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
             'partial'
 
         Input:
-            period: Specify a single period for which cumulated energry is
+            period: Specify a single period for which cumulated energy is
                     required. If None or omitted cumulated values for all
                     periods will be returned. String, must be one of the above
                     dict keys, may be None. Default is None.
@@ -571,7 +571,7 @@ class AuroraInverter(object):
 
     def __init__(self, port, baudrate=19200, timeout=2.0,
                  wait_before_retry=1.0, command_delay=0.05):
-        """Initiaise the AuroraInverter object."""
+        """Initialise the AuroraInverter object."""
 
         self.port = port
         self.baudrate = baudrate
@@ -736,14 +736,14 @@ class AuroraInverter(object):
             except weewx.WeeWxIOError:
                 pass
             logdbg("send_cmd_with_crc: try #%d" % (count + 1,))
-        logerr("Unable to send or recive data to/from the inverter")
-        raise weewx.WeeWxIOError("Unable to send or recive data to/from the inverter")
+        logerr("Unable to send or receive data to/from the inverter")
+        raise weewx.WeeWxIOError("Unable to send or receive data to/from the inverter")
 
     def read_with_crc(self, bytes=8):
         """Read an inverter response with CRC and return the data.
 
         Read a response from the inverter, check the CRC and if valid strip the
-        CRC and return the data payload.
+        CRC and return the data pay load.
             Input:
                 bytes: The number of bytes to be read.
 
@@ -756,12 +756,12 @@ class AuroraInverter(object):
         _response = self.read(bytes=bytes)
         # log the hex bytes received
         logdbg2("read %s" % binascii.hexlify(_response))
-        # check the CRC and strip out the payload
+        # check the CRC and strip out the pay load
         return self.strip_crc16(_response)
 
     @staticmethod
     def crc16(buf):
-        """Calculate a CCIT CRC16 checksum of a series of bytes.
+        """Calculate a CCITT CRC16 checksum of a series of bytes.
 
         Calculated as per the Checksum calculation section of the Aurora PV
         Inverter Series Communications Protocol.
@@ -873,7 +873,7 @@ class AuroraInverter(object):
 
     @staticmethod
     def _dec_ascii(v):
-        """Decode inverter response containing ascii characters only.
+        """Decode inverter response containing ASCII characters only.
 
         Decode a 6 byte response in the following format:
 
@@ -889,7 +889,7 @@ class AuroraInverter(object):
 
         Returns:
             A ResponseTuple where the transmission and global attributes are None
-            and the data attribute is a 6 character ascii string.
+            and the data attribute is a 6 character ASCII string.
         """
 
         try:
@@ -899,7 +899,7 @@ class AuroraInverter(object):
 
     @staticmethod
     def _dec_ascii_and_state(v):
-        """Decode inverter response containing ascii characters and inverter state.
+        """Decode inverter response containing ASCII characters and inverter state.
 
         Decode a 6 byte response in the following format:
 
@@ -910,7 +910,7 @@ class AuroraInverter(object):
         byte 4: par 3
         byte 5: par 4
 
-        where par 1..par 4 are ascii characters used to determine the inverter
+        where par 1..par 4 are ASCII characters used to determine the inverter
         version. To decode par characters refer to Aurora PV Inverter Series
         Communication Protocol rel 4.7 command 58.
 
@@ -918,7 +918,7 @@ class AuroraInverter(object):
             v: bytearray containing the 6 byte response
 
         Returns:
-            A ResponseTuple where the data attribute is a 4 character ascii string.
+            A ResponseTuple where the data attribute is a 4 character ASCII string.
         """
 
         try:
@@ -1108,14 +1108,14 @@ class AuroraInverter(object):
 #   byte 7: CRC high byte
 #
 # The CRC bytes are stripped away by the Aurora class class when validating the
-# inverter response. The four data bytes may represent ascii characters, a
+# inverter response. The four data bytes may represent ASCII characters, a
 # 4 byte float or some other coded value. An inverter response can be
 # represented as a 3-way tuple called a response tuple:
 #
 # Item  Attribute       Meaning
 # 0     transmission    The transmission state code (an integer)
 # 1     global          The global state code (an integer)
-# 2     data            The four bytes in decoded form (eg 4 character ascii string, ANSI float)
+# 2     data            The four bytes in decoded form (eg 4 character ASCII string, ANSI float)
 #
 # Some inverter responses do not include the transmission state and global
 # state, in these cases those response tuple attributes are set to None.
@@ -1193,6 +1193,7 @@ if __name__ == '__main__':
     aurora_dict = config_dict.get('Aurora', None)
     # get an AuroraDriver object
     inverter = AuroraDriver(aurora_dict)
+
     if options.loop:
         while True:
             for packet in inverter.genLoopPackets():
