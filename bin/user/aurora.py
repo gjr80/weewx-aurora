@@ -455,7 +455,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                         yield packet
                     # wait until its time to poll again
                     logdbg2("genLoopPackets: Sleeping")
-                    while int(time.time()) % self.polling_interval != 0:
+                    while time.time() < _ts + self.polling_interval:
                         time.sleep(0.2)
                 except IOError, e:
                     logerr("genLoopPackets: LOOP try #%d; error: %s" % (count + 1, e))
