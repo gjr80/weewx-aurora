@@ -329,8 +329,61 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         # open up the connection to the inverter
         self.openPort()
 
-        # set a number of properties based on system data from the inverter
-        self._setup()
+        # # We now have enough info to communicate with the inverter; however, it
+        # # may be dark and the inverter may be asleep. So attempt to get the
+        # # inverter state, if we get no response then assume the inverter is
+        # # asleep and raise a weewx.WeeWxIOError and weewx will try again in one
+        # # minute. If we get a reponse then we can continue.
+
+        # try:
+            # state_rt = self.do_cmd('state')
+        # except weewx.WeeWxIOError:
+            # loginf("__init__: weewx.WeeWxIOError on initial read state")
+            # raise
+        # # We have been able to communicate with the inverter, though it could
+        # # be a bit patchy until it is on line. Keep checking the inverter every
+        # # self.polling_interval seconds, we need to wait for the inverter
+        # # global state to be '6' (Run). If we get no response self.max_tries
+        # # times then raise a weewx.WeeWxIOError exception and weewx will try
+        # # again from the top in one minute.
+        # # loop until global state == 6 (Run)
+        # while state_rt.global_state != 6:
+            # # set a counter for consecutive comms failures
+            # consecutive = 0
+            # # flag indicating if our last try was a fail
+            # last_try_error = False
+            # while True:
+                # time.sleep(1)
+                # while int(time.time()) % self.polling_interval != 0:
+                    # time.sleep(0.2)
+                # # get the inverter state, wrap in a try..except so we can catch
+                # # any exception
+                # try:
+                    # # get the inverter state response
+                    # state_rt = self.do_cmd('state')
+                    # loginf("__init__: state_rt=%s" % (state_rt,))
+                # except weewx.WeeWxIOError:
+                    # loginf("__init__: error detected")
+                    # # we could not get a response
+                    # last_try_error = True
+                    # # no getting a response is not fatal but we need to take
+                    # # note if we get a number in a row
+                    # consecutive += 1
+                    # if consecutive >= 3:
+                        # loginf("__init__: 3 consecutive errors, raising")
+                        # raise
+                # else:
+                    # # we got a response, reset counter/flag
+                    # last_try_error = False
+                    # consecutive = 0
+                    # # check if the global state == 6 (Run)
+                    # if state_rt.global_state == 6:
+                        # # the inverter is in global state 6 (Run) so we can break
+                        # break
+        # loginf("__init__: Inverter is running")
+
+        # is the inverter running ie global state '6' (Run)
+        self.running = self.do_cmd('state').global_state == 6
 
         # initialise last energy value
         self.last_energy = None
@@ -338,6 +391,11 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         # Build the manifest of readings to be included in the loop packet.
         # Build the Aurora reading to loop packet field map.
         (self.field_map, self.manifest) = self._build_map_manifest(aurora_dict)
+
+        # build a 'none' packet to use when the inverter is offline
+        self.none_packet = {}
+        for src in self.manifest:
+            self.none_packet[src] = None
 
     def openPort(self):
         """Open up the connection to the inverter."""
@@ -365,7 +423,14 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                     _ts = int(time.time())
                     # poll the inverter and obtain raw data
                     logdbg2("genLoopPackets: polling inverter for data")
-                    raw_packet = self.get_raw_packet()
+                    if self.running:
+                        raw_packet = self.get_raw_packet()
+                    else:
+                        self.running = self.do_cmd('state').global_state == 6
+                        if self.running:
+                            raw_packet = self.get_raw_packet()
+                        else:
+                            raw_packet = self.none_packet
                     logdbg2("genLoopPackets: received raw data packet: %s" % raw_packet)
                     # process raw data and return a dict that can be used as a
                     # LOOP packet
@@ -403,7 +468,10 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
 
         _packet = {}
         for reading in self.manifest:
-            _packet[reading] = self.do_cmd(reading).data
+            _response = self.do_cmd(reading)
+            if self.running:
+                self.running = _response.global_state == 6
+            _packet[reading] = _response.data
         return _packet
 
     def process_raw_packet(self, raw_packet):
@@ -502,9 +570,39 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
 
     @property
     def hardware_name(self):
-        """Get the name by which this hardware is known."""
+        """The name by which this hardware is known."""
 
         return self.model
+
+    @property
+    def part_number(self):
+        """The inverter part number."""
+
+        return self.do_cmd('partNumber').data
+
+    @property
+    def version(self):
+        """The inverter version."""
+
+        return self.do_cmd('version').data
+
+    @property
+    def serial_number(self):
+        """The inverter firmware release."""
+
+        return self.do_cmd('serialNumber').data
+
+    @property
+    def manufacture_date(self):
+        """The inverter firmware release."""
+
+        return self.do_cmd('manufactureDate').data
+
+    @property
+    def firmware_rel(self):
+        """The inverter firmware release."""
+
+        return self.do_cmd('firmwareRelease').data
 
     @staticmethod
     def calculate_energy(newtotal, oldtotal):
@@ -518,20 +616,6 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         else:
             delta = None
         return delta
-
-    def _setup(self):
-        """Retrieves data from the inverter and sets various properties."""
-
-        # get and save our part number
-        self.part_number = self.do_cmd('partNumber').data
-        # get and save our version
-        self.version = self.do_cmd('version').data
-        # get and save our serial number
-        self.serial_number = self.do_cmd('serialNumber').data
-        # get and save our manufacture date
-        self.manufacture_data = self.do_cmd('manufactureDate').data
-        # get and save our firmware release number
-        self.firmware_rel = self.do_cmd('firmwareRelease').data
 
     def _build_map_manifest(self, inverter_dict):
         """Build a field map and command manifest.
@@ -874,7 +958,10 @@ class AuroraInverter(object):
         To be written.
         """
 
-        pass
+        try:
+            return ResponseTuple(ord(v[0]), ord(v[1]), (ord(v[2]), ord(v[3]), ord(v[4]), ord(v[5])))
+        except (IndexError, TypeError):
+            return ResponseTuple(None, None, None)
 
     @staticmethod
     def _dec_ascii(v):
@@ -1184,6 +1271,8 @@ if __name__ == '__main__':
     # weewx imports
     import weecfg
 
+    from weeutil.weeutil import timestamp_to_string
+
     def sort(rec):
         return ", ".join(["%s: %s" % (k, rec.get(k)) for k in sorted(rec,
                                                                      key=str.lower)])
@@ -1202,6 +1291,8 @@ if __name__ == '__main__':
                       help='Output inverter loop data.')
     parser.add_option('--dump', dest='dump', action='store_true',
                       help='Dump inverter readings to screen.')
+    parser.add_option('--monitor', dest='monitor', action='store_true',
+                      help='Monitor the inverter status.')
     (options, args) = parser.parse_args()
 
     if options.version:
@@ -1231,4 +1322,55 @@ if __name__ == '__main__':
         print "%17s: %s" % ("Firmware Release", inverter.firmware_rel)
         for reading in inverter.manifest:
             print "%17s: %s" % (reading, inverter.do_cmd(reading).data)
+        exit(0)
+
+    if options.monitor:
+        while int(time.time()) % inverter.polling_interval != 0:
+            time.sleep(0.2)
+        while True:
+            print "%s:" % (timestamp_to_string(time.time()),)
+            try:
+                response_rt = inverter.do_cmd('state')
+            except weewx.WeeWxIOError:
+                response_rt = ResponseTuple(None, None, None)
+            if response_rt.transmission_state is not None:
+                print "%18s: %d - %s" % ("Transmission state",
+                                         response_rt.transmission_state,
+                                         AuroraDriver.TRANSMISSION[response_rt.transmission_state])
+            else:
+                print "Transmission state: None - None"
+            if response_rt.global_state is not None:
+                print "%18s: %d - %s" % ("Global state",
+                                         response_rt.global_state,
+                                         AuroraDriver.GLOBAL[response_rt.global_state])
+            else:
+                print "      Global state: None - None"
+            if response_rt.data is not None and response_rt.data[0] is not None:
+                print "%18s: %d - %s" % ("Inverter state",
+                                         response_rt.data[0],
+                                         AuroraDriver.INVERTER[response_rt.data[0]])
+            else:
+                print "    Inverter state: None - None"
+            if response_rt.data is not None and response_rt.data[1] is not None:
+                print "%18s: %d - %s" % ("DcDc1 state",
+                                         response_rt.data[1],
+                                         AuroraDriver.DCDC[response_rt.data[1]])
+            else:
+                print "       DcDc1 state: None - None"
+            if response_rt.data is not None and response_rt.data[2] is not None:
+                print "%18s: %d - %s" % ("DcDc2 state",
+                                         response_rt.data[2],
+                                         AuroraDriver.DCDC[response_rt.data[2]])
+            else:
+                print "       DcDc2 state: None - None"
+            if response_rt.data is not None and response_rt.data[3] is not None:
+                print "%18s: %d - %s(%s)" % ("Alarm state",
+                                             response_rt.data[3],
+                                             AuroraDriver.ALARM[response_rt.data[3]]['description'],
+                                             AuroraDriver.ALARM[response_rt.data[3]]['code'])
+            else:
+                print "       Alarm state: None - None"
+            time.sleep(1)
+            while int(time.time()) % inverter.polling_interval != 0:
+                time.sleep(0.2)
         exit(0)
