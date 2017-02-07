@@ -1,6 +1,6 @@
 # aurora_driver.py
 #
-# A weewx driver for the Power One Aurora PVI-6000 inverter.
+# A weeWX driver for the Power One Aurora PVI-6000 inverter.
 #
 # Copyright (C) 2016 Gary Roderick                  gjroderick<at>gmail.com
 #
@@ -17,16 +17,206 @@
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see http://www.gnu.org/licenses/.
 #
-# Version: 0.2.0                                    Date: 31 January 2017
+# Version: 0.3                                      Date: 7 February 2017
 #
 # Revision History
-#   31 January 2017     v0.2.0      - no longer use the aurora application for
-#                                     interrogating the inverter, communication
-#                                     with the inverter is now performed
-#                                     directly via the AuroraInverter class
-#   1 January 2017      v0.1.0      - initial release
+#   7 February 2017     v0.3    - hex inverter respone streams now printed as
+#                                 space separated bytes
+#                               - fixed various typos
+#                               - some test screen error output now syslog'ed
+#                               - genLoopPackets() now produces 'None' packets
+#                                 when the inverter is off line
+#                               - converted a number of class properties that
+#                                 were set on __init__ to @property that are
+#                                 queried when required
+#                               - inverter state request reponse now decoded
+#                               - added --monitor action to __main__
+#                               - improved delay loop in genLoopPackets()
+#                               - added usage instructions
+#   31 January 2017     v0.2    - no longer use the aurora application for
+#                                 interrogating the inverter, communication
+#                                 with the inverter is now performed directly
+#                                 via the AuroraInverter class
+#   1 January 2017      v0.1    - initial release
 #
-""" A weewx driver for the Power One Aurora PVI-6000 inverter."""
+""" A weeWX driver for the Power One Aurora PVI-6000 inverter.
+
+The driver communicates directly with the inverter without the need for any
+other application. The driver produces loop packets that may be used with a
+custom weeWX schema to produce archive records may be stored and processed by
+the weeWX engine.
+
+To use:
+
+1.  Copy this file to /home/weewx/bin/user.
+
+2.  Add the following section to weewx.conf setting options as required:
+
+##############################################################################
+[Aurora]
+    # This section is for the Aurora Inverter driver
+
+    # model name
+    model = Aurora PVI-6000
+
+    # port to use
+    port = /dev/ttyUSB0
+
+    # inverter address, usually 2
+    address = 2
+
+    # how many tries to communicate with inverter before giving up, default = 3
+    max_tries = 3
+
+    # The time (in seconds) between LOOP packets. The time between LOOP packets
+    # is limited by time it takes to interrogate the inverter and receive a
+    # response. This time depends on the amount of data being sought from the
+    # inverter. Just the DSP data will take 2-3 seconds, DSP and any other data
+    # (extended DSP and energy) typically takes 4-5 seconds. Recommended
+    # setting is 10 sec or greater, recommended minimum is 6 sec, default = 10.
+    loop_interval = 10
+
+    # Use the time from the inverter or the time from weewx as the loop packet
+    # dateTime. Setting the inverter time causes cumulative energy data to be
+    # lost so it may be preferable to use weewx as the dateTime source. True
+    # or False, default = False.
+    use_inverter_time = False
+
+    # The driver to use:
+    driver = user.aurora
+
+    # Mapping of inverter readings to aurora archive schema fields. Format is:
+    #
+    #   aurora archive schema field name = aurora reading name
+    #
+    # On startup the AuroraDriver derives the aurora readings to use to
+    # construct the AuroraDriver loop packets from the aurora readings included
+    # in the [[FieldMap]]. All aurora readings included in the [[FieldMap]]
+    # must be a key from the user.aurora.AuroraInverter.commands dict.
+    [[FieldMap]]
+        string1Voltage = str1V
+        string1Current = str1C
+        string1Power = str1P
+        string2Voltage = str2V
+        string2Current = str2C
+        string2Power = str2P
+        gridVoltage = gridV
+        gridCurrent = gridC
+        gridPower = gridP
+        gridFrequency = frequency
+        inverterTemp = inverterT
+        boosterTemp = boosterT
+        bulkVoltage = bulkV
+        isoResistance = isoR
+        bulkmidVoltage = bulkMidV
+        bulkdcVoltage = bulkDcV
+        leakdcCurrent = leakDcC
+        leakCurrent = leakC
+        griddcVoltage = gridDcV
+        gridavgVoltage = gridAvV
+        gridnVoltage = peakP
+        griddcFrequency = gridDcFreq
+        dayEnergy = dayEnergy
+
+##############################################################################
+
+3.  Add the following section to weewx.conf:
+
+##############################################################################
+[Accumulator]
+    [[energy]]
+        extractor = sum
+
+##############################################################################
+
+4   Edit weewx.conf as follows:
+
+    - under [Station] set station_type = Aurora
+    - unless requried for any other purpose, disable any report under
+      [StdReport]
+    - under [DataBindings] create a new binding for the Aurora data
+    - under [StdArchive] set record_generation = software
+    - under [StdArchive] set data_binding to the name of the data binding to
+      be used for Aurora data
+    - under [Engine] [[Services]] remove weewx.engine.StdTimeSynch from
+      prep_services
+    - under [Engine] [[Services]] remove weewx.wxservices.StdWXCalculate from
+      process_services
+    - under [Engine] [[Services]] remove all restful_services except
+      user.pvoutput.StdPVOutput (if required)
+
+4.  Add the following to /home/weewx/bin/user/extensions.py:
+
+# ============================================================================
+#                  Aurora units definitions and functions
+# ============================================================================
+
+import weewx.units
+
+# create groups for frequency and resistance
+weewx.units.USUnits['group_frequency'] = 'hertz'
+weewx.units.MetricUnits['group_frequency'] = 'hertz'
+weewx.units.MetricWXUnits['group_frequency'] = 'hertz'
+weewx.units.USUnits['group_resistance'] = 'ohm'
+weewx.units.MetricUnits['group_resistance'] = 'ohm'
+weewx.units.MetricWXUnits['group_resistance'] = 'ohm'
+
+# set default formats and labels for frequency and resistance
+weewx.units.default_unit_format_dict['hertz'] = '%.1f'
+weewx.units.default_unit_label_dict['hertz'] = ' ohm'
+weewx.units.default_unit_format_dict['ohm'] = '%.1f'
+weewx.units.default_unit_label_dict['ohm'] = ' ohm'
+
+# define conversion functions for resistance
+weewx.units.conversionDict['ohm'] = {'kohm': lambda x : x / 1000.0,
+                                     'Mohm': lambda x : x / 1000000.0}
+weewx.units.conversionDict['kohm'] = {'ohm': lambda x : x * 1000.0,
+                                      'Mohm': lambda x : x / 1000.0}
+weewx.units.conversionDict['Mohm'] = {'ohm': lambda x : x * 1000000.0,
+                                      'kohm': lambda x : x * 1000.0}
+
+# assign database fields to groups
+weewx.units.obs_group_dict['string1Voltage'] = 'group_volt'
+weewx.units.obs_group_dict['string1Current'] = 'group_amp'
+weewx.units.obs_group_dict['string1Power'] = 'group_power'
+weewx.units.obs_group_dict['string2Voltage'] = 'group_volt'
+weewx.units.obs_group_dict['string2Current'] = 'group_amp'
+weewx.units.obs_group_dict['string2Power'] = 'group_power'
+weewx.units.obs_group_dict['gridVoltage'] = 'group_volt'
+weewx.units.obs_group_dict['gridCurrent'] = 'group_amp'
+weewx.units.obs_group_dict['gridPower'] = 'group_power'
+weewx.units.obs_group_dict['gridFrequency'] = 'group_frequency'
+weewx.units.obs_group_dict['efficiency'] = 'group_percent'
+weewx.units.obs_group_dict['inverterTemp'] = 'group_temperature'
+weewx.units.obs_group_dict['boosterTemp'] = 'group_temperature'
+weewx.units.obs_group_dict['bulkVoltage'] = 'group_volt'
+weewx.units.obs_group_dict['isoResistance'] = 'group_resistance'
+weewx.units.obs_group_dict['in1Power'] = 'group_power'
+weewx.units.obs_group_dict['in2Power'] = 'group_power'
+weewx.units.obs_group_dict['bulkmidVoltage'] = 'group_volt'
+weewx.units.obs_group_dict['bulkdcVoltage'] = 'group_volt'
+weewx.units.obs_group_dict['leakdcCurrent'] = 'group_amp'
+weewx.units.obs_group_dict['leakCurrent'] = 'group_amp'
+weewx.units.obs_group_dict['griddcVoltage'] = 'group_volt'
+weewx.units.obs_group_dict['gridavgVoltage'] = 'group_volt'
+weewx.units.obs_group_dict['gridnVoltage'] = 'group_volt'
+weewx.units.obs_group_dict['griddcFrequency'] = 'group_frequency'
+weewx.units.obs_group_dict['energy'] = 'group_energy'
+
+5.  Stop then start weeWX.
+
+Standalone testing
+
+This driver can be run in standalone mode without the overheads of the weeWX engine and services. The available options can be displayed using:
+
+    $ PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/aurora.py --help
+
+The options can be selected using:
+
+    $ PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/aurora.py --option
+
+    where option is one of the options listed by --help
+"""
 
 from __future__ import with_statement
 import binascii
@@ -36,14 +226,14 @@ import syslog
 import time
 
 
-# weewx imports
+# weeWX imports
 import weewx.drivers
 
 from weeutil.weeutil import timestamp_to_string, option_as_list, to_bool
 
 # our name and version number
 DRIVER_NAME = 'Aurora'
-DRIVER_VERSION = '0.2.0'
+DRIVER_VERSION = '0.3'
 
 
 def logmsg(level, msg):
@@ -318,8 +508,8 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         self.port = aurora_dict.get('port', '/dev/ttyUSB0')
         self.max_tries = int(aurora_dict.get('max_tries', 3))
         self.polling_interval = int(aurora_dict.get('loop_interval', 10))
-        logdbg('inverter will be polled on port %s every %d seconds' % (self.port,
-                                                                        self.polling_interval))
+        logdbg('inverter will be polled on port %s every %d seconds' %
+                   (self.port, self.polling_interval))
         self.address = int(aurora_dict.get('address', 2))
         self.use_inverter_time = to_bool(aurora_dict.get('use_inverter_time',
                                                          False))
@@ -328,59 +518,6 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         self.inverter = AuroraInverter(self.port)
         # open up the connection to the inverter
         self.openPort()
-
-        # # We now have enough info to communicate with the inverter; however, it
-        # # may be dark and the inverter may be asleep. So attempt to get the
-        # # inverter state, if we get no response then assume the inverter is
-        # # asleep and raise a weewx.WeeWxIOError and weewx will try again in one
-        # # minute. If we get a reponse then we can continue.
-
-        # try:
-            # state_rt = self.do_cmd('state')
-        # except weewx.WeeWxIOError:
-            # loginf("__init__: weewx.WeeWxIOError on initial read state")
-            # raise
-        # # We have been able to communicate with the inverter, though it could
-        # # be a bit patchy until it is on line. Keep checking the inverter every
-        # # self.polling_interval seconds, we need to wait for the inverter
-        # # global state to be '6' (Run). If we get no response self.max_tries
-        # # times then raise a weewx.WeeWxIOError exception and weewx will try
-        # # again from the top in one minute.
-        # # loop until global state == 6 (Run)
-        # while state_rt.global_state != 6:
-            # # set a counter for consecutive comms failures
-            # consecutive = 0
-            # # flag indicating if our last try was a fail
-            # last_try_error = False
-            # while True:
-                # time.sleep(1)
-                # while int(time.time()) % self.polling_interval != 0:
-                    # time.sleep(0.2)
-                # # get the inverter state, wrap in a try..except so we can catch
-                # # any exception
-                # try:
-                    # # get the inverter state response
-                    # state_rt = self.do_cmd('state')
-                    # loginf("__init__: state_rt=%s" % (state_rt,))
-                # except weewx.WeeWxIOError:
-                    # loginf("__init__: error detected")
-                    # # we could not get a response
-                    # last_try_error = True
-                    # # no getting a response is not fatal but we need to take
-                    # # note if we get a number in a row
-                    # consecutive += 1
-                    # if consecutive >= 3:
-                        # loginf("__init__: 3 consecutive errors, raising")
-                        # raise
-                # else:
-                    # # we got a response, reset counter/flag
-                    # last_try_error = False
-                    # consecutive = 0
-                    # # check if the global state == 6 (Run)
-                    # if state_rt.global_state == 6:
-                        # # the inverter is in global state 6 (Run) so we can break
-                        # break
-        # loginf("__init__: Inverter is running")
 
         # is the inverter running ie global state '6' (Run)
         self.running = self.do_cmd('state').global_state == 6
@@ -431,7 +568,8 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                             raw_packet = self.get_raw_packet()
                         else:
                             raw_packet = self.none_packet
-                    logdbg2("genLoopPackets: received raw data packet: %s" % raw_packet)
+                    logdbg2("genLoopPackets: received raw data packet: %s" %
+                                raw_packet)
                     # process raw data and return a dict that can be used as a
                     # LOOP packet
                     packet = self.process_raw_packet(raw_packet)
@@ -451,14 +589,16 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                         packet['energy'] = self.calculate_energy(packet['dayEnergy'],
                                                                  self.last_energy)
                         self.last_energy = packet['dayEnergy'] if 'dayEnergy' in packet else None
-                        logdbg2("genLoopPackets: received loop packet: %s" % packet)
+                        logdbg2("genLoopPackets: received loop packet: %s" %
+                                    packet)
                         yield packet
                     # wait until its time to poll again
                     logdbg2("genLoopPackets: Sleeping")
                     while time.time() < _ts + self.polling_interval:
                         time.sleep(0.2)
                 except IOError, e:
-                    logerr("genLoopPackets: LOOP try #%d; error: %s" % (count + 1, e))
+                    logerr("genLoopPackets: LOOP try #%d; error: %s" %
+                               (count + 1, e))
                     break
         logerr("genLoopPackets: LOOP max tries (%d) exceeded." % self.max_tries)
         raise weewx.RetriesExceeded("Max tries exceeded while getting LOOP data.")
@@ -475,7 +615,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         return _packet
 
     def process_raw_packet(self, raw_packet):
-        """Create a weewx loop packet from a raw loop data."""
+        """Create a weeWX loop packet from a raw loop data."""
 
         # map raw packet readings to loop packet fields using the field map
         _packet = {}
@@ -606,7 +746,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
 
     @staticmethod
     def calculate_energy(newtotal, oldtotal):
-        """Calculate the energy differential given two cumulative measurements."""
+        """Calculate energy differential given two cumulative measurements."""
 
         if newtotal is not None and oldtotal is not None:
             if newtotal >= oldtotal:
@@ -747,13 +887,13 @@ class AuroraInverter(object):
         except serial.serialutil.SerialException, e:
             logerr("SerialException on write.")
             logerr("  ***** %s" % e)
-            # reraise as a weewx error I/O error:
+            # reraise as a weeWX error I/O error:
             raise weewx.WeeWxIOError(e)
         # Python version 2.5 and earlier returns 'None', so it cannot be used
         # to test for completion.
         if N is not None and N != len(data):
-           raise weewx.WeeWxIOError("Expected to write %d chars; sent %d instead" % (len(data),
-                                                                                      N))
+           raise weewx.WeeWxIOError("Expected to write %d chars; sent %d instead" %
+                                        (len(data), N))
 
     def read(self, bytes=8):
         """Read data from the inverter.
@@ -776,12 +916,12 @@ class AuroraInverter(object):
             logerr("  ***** %s" % e)
             logerr("  ***** Is there a competing process running??")
             raise
-            # reraise as a weewx error I/O error:
+            # reraise as a weeWX error I/O error:
             raise weewx.WeeWxIOError(e)
         N = len(_buffer)
         if N != bytes:
-            raise weewx.WeeWxIOError("Expected to read %d bytes; got %d instead" % (bytes,
-                                                                                    N))
+            raise weewx.WeeWxIOError("Expected to read %d bytes; got %d instead" %
+                                         (bytes, N))
         return _buffer
 
     def send_cmd_with_crc(self, reading, globall=0, address=2, max_tries=3):
@@ -909,9 +1049,10 @@ class AuroraInverter(object):
         else:
             logerr("Inverter response failed CRC check:")
             logerr("  ***** response=%s" % (format_byte_to_hex(buffer)))
-            logerr("  *****     data=%s        CRC=%s  expected CRC=%s" % (format_byte_to_hex(data),
-                                                                           format_byte_to_hex(crc_bytes),
-                                                                           format_byte_to_hex(crc)))
+            logerr("  *****     data=%s        CRC=%s  expected CRC=%s" %
+                       (format_byte_to_hex(data),
+                       format_byte_to_hex(crc_bytes),
+                       format_byte_to_hex(crc)))
             raise weewx.CRCError("Inverter response failed CRC check")
 
     @staticmethod
@@ -959,13 +1100,14 @@ class AuroraInverter(object):
         """
 
         try:
-            return ResponseTuple(ord(v[0]), ord(v[1]), (ord(v[2]), ord(v[3]), ord(v[4]), ord(v[5])))
+            return ResponseTuple(ord(v[0]), ord(v[1]), (ord(v[2]),
+                                 ord(v[3]), ord(v[4]), ord(v[5])))
         except (IndexError, TypeError):
             return ResponseTuple(None, None, None)
 
     @staticmethod
     def _dec_ascii(v):
-        """Decode inverter response containing ASCII characters only.
+        """Decode a response containing ASCII characters only.
 
         Decode a 6 byte response in the following format:
 
@@ -980,8 +1122,8 @@ class AuroraInverter(object):
             v: bytearray containing the 6 byte response
 
         Returns:
-            A ResponseTuple where the transmission and global attributes are None
-            and the data attribute is a 6 character ASCII string.
+            A ResponseTuple where the transmission and global attributes are
+            None and the data attribute is a 6 character ASCII string.
         """
 
         try:
@@ -991,7 +1133,7 @@ class AuroraInverter(object):
 
     @staticmethod
     def _dec_ascii_and_state(v):
-        """Decode inverter response containing ASCII characters and inverter state.
+        """Decode a response containing ASCII characters and inverter state.
 
         Decode a 6 byte response in the following format:
 
@@ -1010,7 +1152,8 @@ class AuroraInverter(object):
             v: bytearray containing the 6 byte response
 
         Returns:
-            A ResponseTuple where the data attribute is a 4 character ASCII string.
+            A ResponseTuple where the data attribute is a 4 character ASCII
+            string.
         """
 
         try:
@@ -1020,7 +1163,7 @@ class AuroraInverter(object):
 
     @staticmethod
     def _dec_float(v):
-        """Decode inverter response containing 4 byte float and inverter state.
+        """Decode a response containing 4 byte float and inverter state.
 
         Decode a 6 byte response in the following format:
 
@@ -1057,13 +1200,14 @@ class AuroraInverter(object):
         """
 
         try:
-            return ResponseTuple(ord(v[0]), ord(v[1]), struct.unpack('!f', v[2:])[0])
+            return ResponseTuple(ord(v[0]), ord(v[1]),
+                                 struct.unpack('!f', v[2:])[0])
         except (IndexError, TypeError):
             return ResponseTuple(None, None, None)
 
     @staticmethod
     def _dec_week_year(v):
-        """Decode inverter response containing week and year and inverter state.
+        """Decode a response containing week and year and inverter state.
 
         Decode a 6 byte response in the following format:
 
@@ -1078,17 +1222,19 @@ class AuroraInverter(object):
             v: bytearray containing the 6 byte response
 
         Returns:
-           A ResponseTuple where data attribute is a 2 way tuple of (week, year).
+           A ResponseTuple where data attribute is a 2 way tuple of (week,
+           year).
         """
 
         try:
-            return ResponseTuple(ord(v[0]), ord(v[1]), (int(v[2:4]), int(v[4:6])))
+            return ResponseTuple(ord(v[0]), ord(v[1]),
+                                 (int(v[2:4]), int(v[4:6])))
         except (IndexError, TypeError):
             return ResponseTuple(None, None, None)
 
     @staticmethod
     def _dec_ts(v):
-        """Decode inverter response containing timestamp and inverter state.
+        """Decode a response containing timestamp and inverter state.
 
         Decode a 6 byte response in the following format:
 
@@ -1108,8 +1254,9 @@ class AuroraInverter(object):
         Refer to the Aurora PV Inverter Series Communication Protocol rel 4.7
         command 70.
 
-        Since weewx uses epoch timestamps the calculated date-time value is
-        converted to an epoch timestamp before being returned in a ResponseTuple.
+        Since weeWX uses epoch timestamps the calculated date-time value is
+        converted to an epoch timestamp before being returned in a
+        ResponseTuple.
 
         Input:
             v: bytearray containing the 6 bytes to convert
@@ -1119,13 +1266,14 @@ class AuroraInverter(object):
         """
 
         try:
-            return ResponseTuple(ord(v[0]), ord(v[1]), AuroraInverter._dec_int(v).data + 946648800)
+            return ResponseTuple(ord(v[0]), ord(v[1]),
+                                 AuroraInverter._dec_int(v).data + 946648800)
         except (IndexError, TypeError):
             return ResponseTuple(None, None, None)
 
     @staticmethod
     def _dec_int(v):
-        """Decode inverter response containing 4 byte integer and inverter state.
+        """Decode a response containing 4 byte integer and inverter state.
 
         Decode a 6 byte response in the following format:
 
@@ -1159,7 +1307,7 @@ class AuroraInverter(object):
 
     @staticmethod
     def _dec_alarms(v):
-        """Decode inverter response contain last 4 alarms and inverter state.
+        """Decode a response contain last 4 alarms and inverter state.
 
         Decode a 6 byte response in the following format:
 
@@ -1174,7 +1322,8 @@ class AuroraInverter(object):
             v: bytearray containing the 6 byte response
 
         Returns:
-           A ResponseTuple where data attribute is a 4 way tuple of alarm codes.
+           A ResponseTuple where data attribute is a 4 way tuple of alarm
+           codes.
         """
 
         try:
@@ -1225,7 +1374,8 @@ def format_byte_to_hex(bytes):
 # Item  Attribute       Meaning
 # 0     transmission    The transmission state code (an integer)
 # 1     global          The global state code (an integer)
-# 2     data            The four bytes in decoded form (eg 4 character ASCII string, ANSI float)
+# 2     data            The four bytes in decoded form (eg 4 character ASCII
+#                       string, ANSI float)
 #
 # Some inverter responses do not include the transmission state and global
 # state, in these cases those response tuple attributes are set to None.
@@ -1255,7 +1405,7 @@ class ResponseTuple(tuple):
 #                          Main Entry for Testing
 # ============================================================================
 
-# define a main entry point for basic testing without the weewx engine and
+# Define a main entry point for basic testing without the weeWX engine and
 # service overhead. To invoke this:
 #
 # PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/aurora.py
@@ -1268,7 +1418,7 @@ if __name__ == '__main__':
     # python imports
     import optparse
 
-    # weewx imports
+    # weeWX imports
     import weecfg
 
     from weeutil.weeutil import timestamp_to_string
