@@ -1,6 +1,6 @@
 # aurora_schema.py
 #
-# A weewx schema for use the weewx-aurora driver and an Aurora inverter.
+# A weeWX schema for use the weewx-aurora driver and an Aurora inverter.
 #
 # Copyright (C) 2016 Gary Roderick                  gjroderick<at>gmail.com
 #
