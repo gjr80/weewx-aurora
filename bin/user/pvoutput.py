@@ -17,17 +17,23 @@
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see http://www.gnu.org/licenses/.
 #
-# Version: 0.1                                      Date: 17 December 2016
+# Version: 0.2                                      Date: 7 February 2017
 #
 # Revision History
-#  17 December 2016     v0.1    - initial release
+#   7 February 2017     v0.2    - check to ensure that PVOutputThread has the
+#                                 minimum required fields to post a status to
+#                                 PVOutput.
+#   17 December 2016    v0.1    - initial release
 #
 """Classes to interract with the PVOutput API.
 
-Child classes ( and )are defined for use by weewx RESTful to post data to
-PVOutput. Also includes a PVOuputAPI class to add, update, read and delete
-system data on PVOutput.
+Classes StdPVOutput and PVOutputThread are used as a weeWX RESTful service to
+post data to PVOutput.org.
+
+Class PVOuputAPI provides the ability to add, update, read and delete system
+data on PVOutput.org via the PVOutput API.
 """
+
 import datetime
 import httplib
 import Queue
@@ -42,41 +48,11 @@ import weewx.restx
 import weewx.units
 from weeutil.weeutil import timestamp_to_string, startOfDay
 
-##### Temporary functions used during development to read sid and api key info
-##### from a limited file rather than having in weewx.conf.
-##### Delete before release
-
-def read_api_key():
-    """Read api_key from a file.
-
-    Temporary convenience function used during development to read an api_key
-    from a local file so that I don't have to put it in weewx.conf (that I am
-    saving to github) or type it on the command line.
-
-    Delete this from the production version.
-    """
-    with open('/home/gary/api_key.txt', 'r') as f:
-        api_key = f.read()
-    return api_key
-
-def read_sid():
-    """Read system ID from a file.
-
-    Temporary convenience function used during development to read a system ID
-    from a local file so that I don't have to put it in weewx.conf (that I am
-    saving to github) or type it on the command line.
-
-    Delete this from the production version.
-    """
-    with open('/home/gary/sid.txt', 'r') as f:
-        sid = f.read()
-    return sid
-##### End of temporary functions used during development. Delete before release.
-
 
 # ============================================================================
 #                            class StdPVOutput
 # ============================================================================
+
 
 class StdPVOutput(weewx.restx.StdRESTful):
     """Specialised RESTful class for PVOutput."""
@@ -112,12 +88,16 @@ class StdPVOutput(weewx.restx.StdRESTful):
         self.archive_thread.start()
         # bind to NEW_ARCHIVE _RECORD event
         self.bind(weewx.NEW_ARCHIVE_RECORD, self.new_archive_record)
-        syslog.syslog(syslog.LOG_INFO, "restx: %s: "
+        syslog.syslog(syslog.LOG_INFO, "pvoutput: %s: "
                       "Data for system ID %s will be posted" %
                       (StdPVOutput.protocol_name, _pvoutput_dict['system_id']))
 
     def new_archive_record(self, event):
-        """Put new archive records in the archive queue."""
+        """Put new archive records in the archive queue.
+
+        Each archive record placed in the queue will be posted as a status to
+        PVOutput.org.
+        """
 
         self.archive_queue.put(event.record)
 
@@ -168,10 +148,8 @@ class PVOutputThread(weewx.restx.RESTThread):
                                              retry_wait=retry_wait,
                                              skip_upload=skip_upload)
 
-        self.sid = read_sid()
-###        self.sid = system_id
-        self.api_key = read_api_key()
-###        self.api_key = api_key
+        self.sid = system_id
+        self.api_key = api_key
         self.server_url = server_url
         self.cumulative = cumulative_energy
         self.net = net
@@ -190,12 +168,12 @@ class PVOutputThread(weewx.restx.RESTThread):
             self.update_period = 14
         # Now summarize what we are doing in a few syslog DEBUG lines
         syslog.syslog(syslog.LOG_DEBUG, "server url=%s" % self.server_url)
-        syslog.syslog(syslog.LOG_DEBUG, "cumulative_energy=%s net=%s net_delay=%d tariffs=%s" % (self.cumulative_energy,
-                                                                                                 self.net,
-                                                                                                 self.net_delay,
-                                                                                                 self.tariffs))
-        syslog.syslog(syslog.LOG_DEBUG, "max batch size=%d max update period=%d days" % (self.max_batch_size,
-                                                                                         self.update_period))
+        syslog.syslog(syslog.LOG_DEBUG,
+                      "cumulative_energy=%s net=%s net_delay=%d tariffs=%s" %
+                      (self.cumulative, self.net, self.net_delay, self.tariffs))
+        syslog.syslog(syslog.LOG_DEBUG,
+                      "max batch size=%d max update period=%d days" %
+                      (self.max_batch_size, self.update_period))
 
     def process_record(self, record, dbmanager):
         """Add a status to the system.
@@ -283,17 +261,17 @@ class PVOutputThread(weewx.restx.RESTThread):
         _request = urllib2.Request(url=url)
         # if debug >= 2 then log some details of our request
         if weewx.debug >= 2:
-            syslog.syslog(syslog.LOG_DEBUG, "restx: %s: url: %s payload: %s" % (self.protocol_name,
-                                                                                url,
-                                                                                urllib.urlencode(params)))
+            syslog.syslog(syslog.LOG_DEBUG, "pvoutput: %s: url: %s payload: %s" % 
+                              (self.protocol_name, url, urllib.urlencode(params)))
         # add our headers, in this case sid and api_key
         _request.add_header('X-Pvoutput-Apikey', self.api_key)
         _request.add_header('X-Pvoutput-SystemId', self.sid)
         response = self.post_with_retries(_request, urllib.urlencode(params))
         # if debug >= 2 then log some details of the response
         if weewx.debug >= 2:
-            syslog.syslog(syslog.LOG_DEBUG, "restx: %s: response: %s" % (self.protocol_name,
-                                                                         _response.read()))
+            syslog.syslog(syslog.LOG_DEBUG,
+                          "pvoutput: %s: response: %s" % (self.protocol_name,
+                                                          response.read()))
 
     def get_record(self, record, dbmanager):
         """Augment record data with additional data derived from the archive.
@@ -330,14 +308,16 @@ class PVOutputThread(weewx.restx.RESTThread):
                 if _result is not None and _result[0] is not None:
                     if not _result[1] == _result[2] == record['usUnits']:
                         raise ValueError("Inconsistent units (%s vs %s vs %s) when querying for dayEnergy" %
-                                         (_result[1], _result[2], record['usUnits']))
+                                             (_result[1],
+                                              _result[2],
+                                              record['usUnits']))
                     _datadict['dayEnergy'] = _result[0]
                 else:
                     _datadict['dayEnergy'] = None
 
         except weedb.OperationalError, e:
             syslog.syslog(syslog.LOG_DEBUG,
-                          "restx: %s: Database OperationalError '%s'" %
+                          "pvoutput: %s: Database OperationalError '%s'" %
                           (self.protocol_name, e))
 
         return _datadict
@@ -400,7 +380,7 @@ class PVOutputThread(weewx.restx.RESTThread):
         # unexpected so just log it and continue.
         if response.code != 200:
             syslog.syslog(syslog.LOG_INFO,
-                          "restx: %s: Unexpected response code: %s" %
+                          "pvoutput: %s: Unexpected response code: %s" %
                           (self.protocol_name, response.code))
 
     def getsystem(self, secondary_array=0, tariffs=0, teams=0,
@@ -449,9 +429,9 @@ class PVOutputThread(weewx.restx.RESTThread):
         _request = urllib2.Request(url=url)
         # if debug >= 2 then log some details of our request
         if weewx.debug >= 2:
-            syslog.syslog(syslog.LOG_DEBUG, "restx: %s: url: %s payload: %s" % (self.protocol_name,
-                                                                                url,
-                                                                                urllib.urlencode(params)))
+            syslog.syslog(syslog.LOG_DEBUG,
+                          "pvoutput: %s: url: %s payload: %s" %
+                              (self.protocol_name, url, urllib.urlencode(params)))
         # add our headers, in this case sid and api_key
         _request.add_header('X-Pvoutput-Apikey', self.api_key)
         _request.add_header('X-Pvoutput-SystemId', self.sid)
@@ -459,13 +439,14 @@ class PVOutputThread(weewx.restx.RESTThread):
         _response = self.post_with_retries(_request, urllib.urlencode(params))
         # if debug >= 2 then log some details of the response
         if weewx.debug >= 2:
-            syslog.syslog(syslog.LOG_DEBUG, "restx: %s: response: %s" % (self.protocol_name,
-                                                                         _response.read()))
+            syslog.syslog(syslog.LOG_DEBUG,
+                          "pvoutput: %s: response: %s" % (self.protocol_name,
+                                                          _response.read()))
         # return a list of dicts
         return _to_dict(_response.read(), GETSYSTEM_FIELDS, single_dict=True)
 
     def skip_this_post(self, time_ts):
-        """Determine whether a post is to be skipped opr not.
+        """Determine whether a post is to be skipped or not.
 
         Use one or more checks to determine whether a post is to be skipped or
         not. In this case the post is skipped if the record is:
@@ -483,7 +464,7 @@ class PVOutputThread(weewx.restx.RESTThread):
             _how_old = time.time() - time_ts
             if _how_old > self.stale:
                 syslog.syslog(syslog.LOG_DEBUG,
-                              "restx: %s: record %s is stale (%d > %d)." %
+                              "pvoutput: %s: record %s is stale (%d > %d)." %
                                   (self.protocol_name,
                                    timestamp_to_string(time_ts),
                                    _how_old,
@@ -498,7 +479,7 @@ class PVOutputThread(weewx.restx.RESTThread):
             if time_ts < _earliest_ts:
                 how_old = (now_dt - datetime.datetime.fromtimestamp(time_ts)).days
                 syslog.syslog(syslog.LOG_DEBUG,
-                              "restx: %s: record %s is older than PVOuptut imposed limits (%d > %d)." %
+                              "pvoutput: %s: record %s is older than PVOuptut imposed limits (%d > %d)." %
                                   (self.protocol_name,
                                    timestamp_to_string(time_ts),
                                    _how_old,
@@ -511,7 +492,7 @@ class PVOutputThread(weewx.restx.RESTThread):
             _how_long = time_ts - self.lastpost
             if _how_long < self.post_interval:
                 syslog.syslog(syslog.LOG_DEBUG,
-                              "restx: %s: wait interval (%d < %d) has not passed for record %s" %
+                              "pvoutput: %s: wait interval (%d < %d) has not passed for record %s" %
                                   (self.protocol_name,
                                    _how_long,
                                    self.post_interval,
@@ -598,8 +579,8 @@ class PVOutputAPI(object):
                     break
                 else:
                     # something went wrong, so raise it
-                    raise HTTPResponseError("%s returned a bad HTTP response code: %s" % (url,
-                                                                                          _status_code))
+                    raise HTTPResponseError("%s returned a bad HTTP response code: %s" %
+                                                (url, _status_code))
             except urllib2.URLError as e:
                 # If we have a reason for the error then we likely didn't get
                 # to the server. Log the error and continue.
@@ -619,7 +600,9 @@ class PVOutputAPI(object):
             # Python 2.5 and earlier does not have a 'timeout' parameter so be
             # prepared to catch the exception and try a Pythoin 2.5 compatible
             # call.
-            _response = urllib2.urlopen(request, data=payload, timeout=self.timeout)
+            _response = urllib2.urlopen(request,
+                                        data=payload,
+                                        timeout=self.timeout)
         except TypeError:
             # Python 2.5 compatible call
             _response = urllib2.urlopen(request, data=payload)
@@ -647,13 +630,13 @@ class PVOutputAPI(object):
                 if _status_code == 200:
                     # we have a good status so we are done
                     if service_script == '/service/r2/addstatus.jsp':
-                        raise HTTPResponseError("%s returned a bad HTTP response code: %s" % (url,
-                                                                                              _status_code))
+                        raise HTTPResponseError("%s returned a bad HTTP response code: %s" %
+                                                    (url, _status_code))
                     break
                 else:
                     # something went wrong, so raise it
-                    raise HTTPResponseError("%s returned a bad HTTP response code: %s" % (url,
-                                                                                          _status_code))
+                    raise HTTPResponseError("%s returned a bad HTTP response code: %s" %
+                                                (url, _status_code))
             except urllib2.URLError as e:
                 # If we have a reason for the error then we likely didn't get
                 # to the server. Log the error and continue.
@@ -807,7 +790,8 @@ class PVOutputAPI(object):
                                                  params)
         except HTTPResponseError, e:
             # should be syslog
-            print "addstatus: Failed to upload status for %s:" % timestamp_to_string(record['dateTime'])
+            print ("addstatus: Failed to upload status for %s:" %
+                       timestamp_to_string(record['dateTime']))
             print "addstatus:      %s" % e
 
     def addbatchstatus(self, records, cumulative=False):
@@ -867,17 +851,20 @@ class PVOutputAPI(object):
         # did we get the same number of responses as records we sent?
         if len(results) != len(records):
             raise PVUploadError("addbatchstatus: Unexpected number results.")
-        # Now go through each records result and check for success. If a record failed to upload then log raise it.
+        # Now go through each records result and check for success. If a record
+        # failed to upload then log raise it.
         for _result in results:
             # split an individual records result into its component fields
             _date, _time, _status = _result.split(",")
             # if we failed to upload the records sucessfully
             if _status != "1":
                 # get a timestamp of the record
-                datetime_dt = datetime.datetime.strptime("%Y%m%d %H;%M", " ".join(_date, _time))
+                datetime_dt = datetime.datetime.strptime("%Y%m%d %H;%M",
+                                                         " ".join(_date, _time))
                 datetime_ts = time.mktime(datetime_dt.timetuple())
                 # raise the error
-                raise PVUploadError("addbatchstatus: Failed to upload status for %s" % timestamp_to_string(datetime_ts))
+                raise PVUploadError("addbatchstatus: Failed to upload status for %s" %
+                                        timestamp_to_string(datetime_ts))
         # if we made it here everything uploaded without error so return the
         # response for use by the caller if required
         return response
@@ -966,7 +953,8 @@ class PVOutputAPI(object):
         for var, data in kwargs.iteritems():
             if var in GETOUTPUT_PARAMS and data is not None:
                 params[GETOUTPUT_PARAMS[var]] = data
-        return self.request_with_retries(self.SERVICE_SCRIPT['getoutput'], params)
+        return self.request_with_retries(self.SERVICE_SCRIPT['getoutput'],
+                                         params)
 
 # ============================================================================
 #                            Utility Functions
@@ -1009,19 +997,25 @@ if __name__ == '__main__':
     config_path = os.path.abspath('/home/weewx/weewx.conf')
     config_dict = weewx.engine.getConfiguration(config_path)
     q = Queue.Queue()
-    _manager_dict = weewx.manager.get_manager_dict_from_config(config_dict, 'aurora_binding')
-    _pvoutput_dict = weewx.restx.get_site_dict(config_dict,'PVOutput','system_id', 'api_key')
+    _manager_dict = weewx.manager.get_manager_dict_from_config(config_dict,
+                                                               'aurora_binding')
+    _pvoutput_dict = weewx.restx.get_site_dict(config_dict,
+                                               'PVOutput',
+                                               'system_id',
+                                               'api_key')
     _pvoutput_dict.setdefault('server_url', StdPVOutput.api_url)
     pv_thread = PVOutputThread(q,
                                _manager_dict,
                                protocol_name="PVOutput-API",
                                **_pvoutput_dict)
     pv_thread.start()
-    record = {'dateTime':1482743100, 'energy':31590, 'temperature':37.5, 'voltage':250.0}
+    record = {'dateTime':1482743100, 'energy':31590,
+              'temperature':37.5, 'voltage':250.0}
     time.sleep(2)
 
     q.put(record)
-    record = {'dateTime':1482743400, 'energy':31590, 'temperature':37.5, 'voltage':250.0}
+    record = {'dateTime':1482743400, 'energy':31590,
+              'temperature':37.5, 'voltage':250.0}
     time.sleep(2)
     q.put(record)
     time.sleep(10)
