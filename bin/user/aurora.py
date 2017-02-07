@@ -609,9 +609,13 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         _packet = {}
         for reading in self.manifest:
             _response = self.do_cmd(reading)
-            if self.running:
-                self.running = _response.global_state == 6
-            _packet[reading] = _response.data
+            if _response.global_state == 6:
+                # inverter is running
+                self.running = True
+                _packet[reading] = _response.data
+            else:
+                self.running = False
+                break
         return _packet
 
     def process_raw_packet(self, raw_packet):
@@ -648,12 +652,25 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
             is returned.
         """
 
-        return self.inverter.send_cmd_with_crc(reading, globall=globall)
+        try:
+            return self.inverter.send_cmd_with_crc(reading, globall=globall)
+        except weewx.WeeWxIOError:
+            return ResponseTuple(None, None, None)
 
     def getTime(self):
         """Get inverter system time and return as an epoch timestamp."""
 
-        return self.do_cmd('timeDate').data
+        # get the ts
+        _time_ts = self.do_cmd('timeDate').data
+        # We can only get the time from the inverter if it is awake, if it is
+        # asleep we will receive None as the ts. We need to perform a little
+        # trickery if we are to keep StdArchive from failing if we startup when
+        # the inverter is asleep. If we have a non-None ts then return it, but
+        # if it is None then raise a NotImplementedError.
+        if _time_ts is None:
+            raise NotImplementedError("Method 'getTime' not implemented")
+        else:
+            return _time_ts
 
     def get_cumulated_energy(self, period=None):
         """Get 'cumulated' energy readings.
