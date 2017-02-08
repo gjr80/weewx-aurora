@@ -229,7 +229,7 @@ import time
 # weeWX imports
 import weewx.drivers
 
-from weeutil.weeutil import timestamp_to_string, option_as_list, to_bool
+from weeutil.weeutil import option_as_list, to_bool
 
 # our name and version number
 DRIVER_NAME = 'Aurora'
@@ -671,6 +671,11 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
             raise NotImplementedError("Method 'getTime' not implemented")
         else:
             return _time_ts
+
+#    def setTime(self, ts):
+#        """Set inverter system time."""
+#
+#        raise NotImplementedError("Method 'setTime' not implemented")
 
     def get_cumulated_energy(self, period=None):
         """Get 'cumulated' energy readings.
@@ -1425,15 +1430,25 @@ class ResponseTuple(tuple):
 # Define a main entry point for basic testing without the weeWX engine and
 # service overhead. To invoke this:
 #
-# PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/aurora.py
+# $ sudo PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/aurora.py --option
 #
-# Driver will then output loop packets until execution is halted.
+# where option is one of the following options:
+#   --help          - display driver command line help
+#   --version       - diplay driver version
+#   --gen-packets   - generate LOOP packets indefinitely
+#   --get-status    - display inverter status
+#   --get-readings  - display current inverter readings
+#   --get-time      - display inverter time
+#   --get-info      - display inverter information
 #
 
 if __name__ == '__main__':
 
     # python imports
+    import datetime
     import optparse
+    import sys
+    import time
 
     # weeWX imports
     import weecfg
@@ -1444,7 +1459,8 @@ if __name__ == '__main__':
         return ", ".join(["%s: %s" % (k, rec.get(k)) for k in sorted(rec,
                                                                      key=str.lower)])
 
-    usage = """%prog [options] [--help]"""
+    usage = """sudo PYTHONPATH=/home/weewx/bin python
+               /home/weewx/bin/user/%prog [--option]"""
 
     syslog.openlog('aurora', syslog.LOG_PID | syslog.LOG_CONS)
     syslog.setlogmask(syslog.LOG_UPTO(syslog.LOG_DEBUG))
@@ -1454,12 +1470,22 @@ if __name__ == '__main__':
                       help="Use configuration file CONFIG_FILE.")
     parser.add_option('--version', dest='version', action='store_true',
                       help='Display driver version.')
-    parser.add_option('--loop', dest='loop', action='store_true',
-                      help='Output inverter loop data.')
-    parser.add_option('--dump', dest='dump', action='store_true',
-                      help='Dump inverter readings to screen.')
-    parser.add_option('--monitor', dest='monitor', action='store_true',
-                      help='Monitor the inverter status.')
+    parser.add_option('--gen-packets', dest='gen', action='store_true',
+                      help='Output LOOP packets indefinitely.')
+    parser.add_option('--get-status', dest='status', action='store_true',
+                      help='Display inverter status.')
+    parser.add_option('--get-readings', dest='readings', action='store_true',
+                      help='Display current inverter readings.')
+    parser.add_option('--get-time', dest='get_time', action='store_true',
+                      help='Display current inverter date-time.')
+    parser.add_option('--get-info', dest='info', action='store_true',
+                      help='Display inverter information.')
+    parser.add_option('--set-time', dest='set_time', action='store_true',
+                      help='Set inverter date-time.')
+    parser.add_option('--date-time', dest='date_time', type=str,
+                      metavar="YYYY-mm-ddTHH:MM:SS",
+                      help='Set inverter to this date-time. Format is '
+                      ' YYYY-mm-ddTHH:MM:SS.')
     (options, args) = parser.parse_args()
 
     if options.version:
@@ -1473,71 +1499,130 @@ if __name__ == '__main__':
     # get a config dict for the inverter
     aurora_dict = config_dict.get('Aurora', None)
     # get an AuroraDriver object
-    inverter = AuroraDriver(aurora_dict)
+    if aurora_dict is not None:
+        inverter = AuroraDriver(aurora_dict)
+    else:
+        exit_str = "'Aurora' stanza not found in config file '%s'. Exiting." % config_path
+        sys.exit(exit_str)
 
-    if options.loop:
+    if options.gen:
         while True:
             for packet in inverter.genLoopPackets():
                 print "LOOP:  ", timestamp_to_string(packet['dateTime']), sort(packet)
-        exit(0)
+    elif options.status:
+        response_rt = inverter.do_cmd('state')
+        print
+        print "%s Status:" % inverter.model
+        if response_rt.transmission_state is not None:
+            print "%22s: %d (%s)" % ("Transmission state",
+                                     response_rt.transmission_state,
+                                     AuroraDriver.TRANSMISSION[response_rt.transmission_state])
+        else:
+            print "Transmission state: None (---)"
+        if response_rt.global_state is not None:
+            print "%22s: %d (%s)" % ("Global state",
+                                     response_rt.global_state,
+                                     AuroraDriver.GLOBAL[response_rt.global_state])
+        else:
+            print "      Global state: None (---)"
+        if response_rt.data is not None and response_rt.data[0] is not None:
+            print "%22s: %d (%s)" % ("Inverter state",
+                                     response_rt.data[0],
+                                     AuroraDriver.INVERTER[response_rt.data[0]])
+        else:
+            print "    Inverter state: None (---)"
+        if response_rt.data is not None and response_rt.data[1] is not None:
+            print "%22s: %d (%s)" % ("DcDc1 state",
+                                     response_rt.data[1],
+                                     AuroraDriver.DCDC[response_rt.data[1]])
+        else:
+            print "       DcDc1 state: None (---)"
+        if response_rt.data is not None and response_rt.data[2] is not None:
+            print "%22s: %d (%s)" % ("DcDc2 state",
+                                     response_rt.data[2],
+                                     AuroraDriver.DCDC[response_rt.data[2]])
+        else:
+            print "       DcDc2 state: None (---)"
+        if response_rt.data is not None and response_rt.data[3] is not None:
+            print "%22s: %d (%s)[%s]" % ("Alarm state",
+                                         response_rt.data[3],
+                                         AuroraDriver.ALARM[response_rt.data[3]]['description'],
+                                         AuroraDriver.ALARM[response_rt.data[3]]['code'])
+        else:
+            print "       Alarm state: None (---)"
 
-    if options.dump:
-        print "%17s: %s" % ("Part Number", inverter.part_number)
-        print "%17s: %s" % ("Version", inverter.version)
-        print "%17s: %s" % ("Serial Number", inverter.serial_number)
-        print "%17s: %s" % ("Manufacture Date", inverter.manufacture_data)
-        print "%17s: %s" % ("Firmware Release", inverter.firmware_rel)
-        for reading in inverter.manifest:
-            print "%17s: %s" % (reading, inverter.do_cmd(reading).data)
-        exit(0)
+    elif options.info:
+        print
+        print "%s Information:" % inverter.model
+        print "%21s: %s" % ("Part Number", inverter.part_number)
+        print "%21s: %s" % ("Version", inverter.version)
+        print "%21s: %s" % ("Serial Number", inverter.serial_number)
+        print "%21s: %s" % ("Manufacture Date", inverter.manufacture_date)
+        print "%21s: %s" % ("Firmware Release", inverter.firmware_rel)
+    elif options.readings:
+        print
+        print "%s Current Readings:" % inverter.model
+        print '-----------------------------------------------'
+        print "Grid:"
+        print "%29s: %sV" % ('Voltage', inverter.do_cmd('gridV').data)
+        print "%29s: %sA" % ('Current', inverter.do_cmd('gridC').data)
+        print "%29s: %sW" % ('Power', inverter.do_cmd('gridP').data)
+        print "%29s: %sHz" % ('Frequency', inverter.do_cmd('frequency').data)
+        print "%29s: %sV" % ('Average Voltage', inverter.do_cmd('gridAvV').data)
+        print "%29s: %sV" % ('Neutral Voltage', inverter.do_cmd('gridNV').data)
+        print "%29s: %sV" % ('Neutral Phase Voltage', inverter.do_cmd('gridNPhV').data)
+        print '-----------------------------------------------'
+        print "String 1:"
+        print "%29s: %sV" % ('Voltage', inverter.do_cmd('str1V').data)
+        print "%29s: %sA" % ('Current', inverter.do_cmd('str1C').data)
+        print "%29s: %sW" % ('Power', inverter.do_cmd('str1P').data)
+        print '-----------------------------------------------'
+        print "String 2:"
+        print "%29s: %sV" % ('Voltage', inverter.do_cmd('str2V').data)
+        print "%29s: %sA" % ('Current', inverter.do_cmd('str2C').data)
+        print "%29s: %sW" % ('Power', inverter.do_cmd('str2P').data)
+        print '-----------------------------------------------'
+        print "Inverter:"
+        print "%29s: %sV" % ('Voltage (DC/DC Booster)', inverter.do_cmd('gridDcV').data)
+        print "%29s: %sHz" % ('Frequency (DC/DC Booster)', inverter.do_cmd('gridDcFreq').data)
+        print "%29s: %sC" % ('Inverter Temp', inverter.do_cmd('inverterT').data)
+        print "%29s: %sC" % ('Booster Temp', inverter.do_cmd('boosterT').data)
+        print "%29s: %sW" % ("Today's Peak Power", inverter.do_cmd('dayPeakP').data)
+        print "%29s: %sW" % ("Lifetime Peak Power", inverter.do_cmd('peakP').data)
+        print "%29s: %sWh" % ("Today's Energy", inverter.do_cmd('dayEnergy').data)
+        print "%29s: %sWh" % ("This Weeks's Energy", inverter.do_cmd('weekEnergy').data)
+        print "%29s: %sWh" % ("This Month's Energy", inverter.do_cmd('monthEnergy').data)
+        print "%29s: %sWh" % ("This Year's Energy", inverter.do_cmd('yearEnergy').data)
+        print "%29s: %sWh" % ("Partial Energy", inverter.do_cmd('partialEnergy').data)
+        print "%29s: %sWh" % ("Lifetime Energy", inverter.do_cmd('totalEnergy').data)
+        print
+        print "%29s: %sV" % ('Bulk Voltage', inverter.do_cmd('bulkV').data)
+        print "%29s: %sV" % ('Bulk DC Voltage', inverter.do_cmd('bulkDcV').data)
+        print "%29s: %sV" % ('Bulk Mid Voltage', inverter.do_cmd('bulkMidV').data)
+        print
+        print "%29s: %sMOhms" % ('Insulation Resistance', inverter.do_cmd('isoR').data)
+        print
+        print "%29s: %sA" % ('Leakage Current(Inverter)', inverter.do_cmd('leakC').data)
+        print "%29s: %sA" % ('Leakage Current(Booster)', inverter.do_cmd('leakDcC').data)
 
-    if options.monitor:
-        while int(time.time()) % inverter.polling_interval != 0:
-            time.sleep(0.2)
-        while True:
-            print "%s:" % (timestamp_to_string(time.time()),)
-            try:
-                response_rt = inverter.do_cmd('state')
-            except weewx.WeeWxIOError:
-                response_rt = ResponseTuple(None, None, None)
-            if response_rt.transmission_state is not None:
-                print "%18s: %d - %s" % ("Transmission state",
-                                         response_rt.transmission_state,
-                                         AuroraDriver.TRANSMISSION[response_rt.transmission_state])
-            else:
-                print "Transmission state: None - None"
-            if response_rt.global_state is not None:
-                print "%18s: %d - %s" % ("Global state",
-                                         response_rt.global_state,
-                                         AuroraDriver.GLOBAL[response_rt.global_state])
-            else:
-                print "      Global state: None - None"
-            if response_rt.data is not None and response_rt.data[0] is not None:
-                print "%18s: %d - %s" % ("Inverter state",
-                                         response_rt.data[0],
-                                         AuroraDriver.INVERTER[response_rt.data[0]])
-            else:
-                print "    Inverter state: None - None"
-            if response_rt.data is not None and response_rt.data[1] is not None:
-                print "%18s: %d - %s" % ("DcDc1 state",
-                                         response_rt.data[1],
-                                         AuroraDriver.DCDC[response_rt.data[1]])
-            else:
-                print "       DcDc1 state: None - None"
-            if response_rt.data is not None and response_rt.data[2] is not None:
-                print "%18s: %d - %s" % ("DcDc2 state",
-                                         response_rt.data[2],
-                                         AuroraDriver.DCDC[response_rt.data[2]])
-            else:
-                print "       DcDc2 state: None - None"
-            if response_rt.data is not None and response_rt.data[3] is not None:
-                print "%18s: %d - %s(%s)" % ("Alarm state",
-                                             response_rt.data[3],
-                                             AuroraDriver.ALARM[response_rt.data[3]]['description'],
-                                             AuroraDriver.ALARM[response_rt.data[3]]['code'])
-            else:
-                print "       Alarm state: None - None"
-            time.sleep(1)
-            while int(time.time()) % inverter.polling_interval != 0:
-                time.sleep(0.2)
-        exit(0)
+    elif options.get_time:
+        inverter_ts = inverter.do_cmd('timeDate').data
+        _error = inverter_ts - time.time()
+        print
+        print "Inverter date-time is %s" % (timestamp_to_string(inverter_ts))
+        print "    Clock error is %.3f seconds (positive is fast)" % _error
+    elif options.set_time:
+        print "option --set-time not yet implemented."
+        # if options.date_time:
+            # # There is a --date-time but is it valid.
+            # try:
+                # _dt = datetime.datetime.strptime(options.date_time,
+                                                 # "%Y-%m-%dT%H:%M:%S")
+                # _ts = time.mktime(_dt.timetuple())
+            # except ValueError:
+                # # could not convert --date-time
+                # _msg = "Invalid --date-time option."
+                # sys.exit(_msg)
+            # # If we made it here we have a valid _ts
+            # inverter.settime(_ts)
+
