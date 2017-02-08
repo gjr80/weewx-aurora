@@ -638,7 +638,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                 _packet[dest] = None
         return _packet
 
-    def do_cmd(self, reading, globall=0):
+    def do_cmd(self, reading, payload=None, globall=0):
         """Send a command to the inverter and return the decoded response.
 
         Inputs:
@@ -653,7 +653,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         """
 
         try:
-            return self.inverter.send_cmd_with_crc(reading, globall=globall)
+            return self.inverter.send_cmd_with_crc(reading, payload=payload, globall=globall)
         except weewx.WeeWxIOError:
             return ResponseTuple(None, None, None)
 
@@ -672,10 +672,15 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         else:
             return _time_ts
 
-#    def setTime(self, ts):
-#        """Set inverter system time."""
-#
-#        raise NotImplementedError("Method 'setTime' not implemented")
+    def setTime(self):
+        """Set inverter system time."""
+
+        _time_ts = self.do_cmd('timeDate').data
+        if _time_ts is None:
+            raise NotImplementedError("Method 'setTime' not implemented")
+        else:
+            _ts = int(time.time() + 0.75)
+            self.do_cmd('setTimeDate', payload=_ts)
 
     def get_cumulated_energy(self, period=None):
         """Get 'cumulated' energy readings.
@@ -833,45 +838,46 @@ class AuroraInverter(object):
         # reading is the command and sub-command codes and applicable decode
         # function.
         self.commands = {
-            'state':           {'cmd': 50, 'sub':  0, 'fn': self._dec_state},
-            'partNumber':      {'cmd': 52, 'sub':  0, 'fn': self._dec_ascii},
-            'version':         {'cmd': 58, 'sub':  0, 'fn': self._dec_ascii_and_state},
-            'gridV':           {'cmd': 59, 'sub':  1, 'fn': self._dec_float},
-            'gridC':           {'cmd': 59, 'sub':  2, 'fn': self._dec_float},
-            'gridP':           {'cmd': 59, 'sub':  3, 'fn': self._dec_float},
-            'frequency':       {'cmd': 59, 'sub':  4, 'fn': self._dec_float},
-            'bulkV':           {'cmd': 59, 'sub':  5, 'fn': self._dec_float},
-            'leakDcC':         {'cmd': 59, 'sub':  6, 'fn': self._dec_float},
-            'leakC':           {'cmd': 59, 'sub':  7, 'fn': self._dec_float},
-            'str1P':           {'cmd': 59, 'sub':  8, 'fn': self._dec_float},
-            'str2P':           {'cmd': 59, 'sub':  9, 'fn': self._dec_float},
-            'inverterT':       {'cmd': 59, 'sub': 21, 'fn': self._dec_float},
-            'boosterT':        {'cmd': 59, 'sub': 22, 'fn': self._dec_float},
-            'str1V':           {'cmd': 59, 'sub': 23, 'fn': self._dec_float},
-            'str1C':           {'cmd': 59, 'sub': 25, 'fn': self._dec_float},
-            'str2V':           {'cmd': 59, 'sub': 26, 'fn': self._dec_float},
-            'str2C':           {'cmd': 59, 'sub': 27, 'fn': self._dec_float},
-            'gridDcV':         {'cmd': 59, 'sub': 28, 'fn': self._dec_float},
-            'gridDcFreq':      {'cmd': 59, 'sub': 29, 'fn': self._dec_float},
-            'isoR':            {'cmd': 59, 'sub': 30, 'fn': self._dec_float},
-            'bulkDcV':         {'cmd': 59, 'sub': 31, 'fn': self._dec_float},
-            'gridAvV':         {'cmd': 59, 'sub': 32, 'fn': self._dec_float},
-            'bulkMidV':        {'cmd': 59, 'sub': 33, 'fn': self._dec_float},
-            'gridNV':          {'cmd': 59, 'sub': 34, 'fn': self._dec_float},
-            'dayPeakP':        {'cmd': 59, 'sub': 35, 'fn': self._dec_float},
-            'peakP':           {'cmd': 59, 'sub': 36, 'fn': self._dec_float},
-            'gridNPhV':        {'cmd': 59, 'sub': 38, 'fn': self._dec_float},
-            'serialNumber':    {'cmd': 63, 'sub':  0, 'fn': self._dec_ascii},
-            'manufactureDate': {'cmd': 65, 'sub':  0, 'fn': self._dec_week_year},
-            'timeDate':        {'cmd': 70, 'sub':  0, 'fn': self._dec_ts},
-            'firmwareRelease': {'cmd': 72, 'sub':  0, 'fn': self._dec_ascii_and_state},
-            'dayEnergy':       {'cmd': 78, 'sub':  0, 'fn': self._dec_int},
-            'weekEnergy':      {'cmd': 78, 'sub':  1, 'fn': self._dec_int},
-            'monthEnergy':     {'cmd': 78, 'sub':  3, 'fn': self._dec_int},
-            'yearEnergy':      {'cmd': 78, 'sub':  4, 'fn': self._dec_int},
-            'totalEnergy':     {'cmd': 78, 'sub':  5, 'fn': self._dec_int},
-            'partialEnergy':   {'cmd': 78, 'sub':  6, 'fn': self._dec_int},
-            'lastAlarms':      {'cmd': 86, 'sub':  0, 'fn': self._dec_alarms}
+            'state':           {'cmd': 50, 'sub':  None, 'fn': self._dec_state},
+            'partNumber':      {'cmd': 52, 'sub':  None, 'fn': self._dec_ascii},
+            'version':         {'cmd': 58, 'sub':  None, 'fn': self._dec_ascii_and_state},
+            'gridV':           {'cmd': 59, 'sub':  1,    'fn': self._dec_float},
+            'gridC':           {'cmd': 59, 'sub':  2,    'fn': self._dec_float},
+            'gridP':           {'cmd': 59, 'sub':  3,    'fn': self._dec_float},
+            'frequency':       {'cmd': 59, 'sub':  4,    'fn': self._dec_float},
+            'bulkV':           {'cmd': 59, 'sub':  5,    'fn': self._dec_float},
+            'leakDcC':         {'cmd': 59, 'sub':  6,    'fn': self._dec_float},
+            'leakC':           {'cmd': 59, 'sub':  7,    'fn': self._dec_float},
+            'str1P':           {'cmd': 59, 'sub':  8,    'fn': self._dec_float},
+            'str2P':           {'cmd': 59, 'sub':  9,    'fn': self._dec_float},
+            'inverterT':       {'cmd': 59, 'sub': 21,    'fn': self._dec_float},
+            'boosterT':        {'cmd': 59, 'sub': 22,    'fn': self._dec_float},
+            'str1V':           {'cmd': 59, 'sub': 23,    'fn': self._dec_float},
+            'str1C':           {'cmd': 59, 'sub': 25,    'fn': self._dec_float},
+            'str2V':           {'cmd': 59, 'sub': 26,    'fn': self._dec_float},
+            'str2C':           {'cmd': 59, 'sub': 27,    'fn': self._dec_float},
+            'gridDcV':         {'cmd': 59, 'sub': 28,    'fn': self._dec_float},
+            'gridDcFreq':      {'cmd': 59, 'sub': 29,    'fn': self._dec_float},
+            'isoR':            {'cmd': 59, 'sub': 30,    'fn': self._dec_float},
+            'bulkDcV':         {'cmd': 59, 'sub': 31,    'fn': self._dec_float},
+            'gridAvV':         {'cmd': 59, 'sub': 32,    'fn': self._dec_float},
+            'bulkMidV':        {'cmd': 59, 'sub': 33,    'fn': self._dec_float},
+            'gridNV':          {'cmd': 59, 'sub': 34,    'fn': self._dec_float},
+            'dayPeakP':        {'cmd': 59, 'sub': 35,    'fn': self._dec_float},
+            'peakP':           {'cmd': 59, 'sub': 36,    'fn': self._dec_float},
+            'gridNPhV':        {'cmd': 59, 'sub': 38,    'fn': self._dec_float},
+            'serialNumber':    {'cmd': 63, 'sub':  None, 'fn': self._dec_ascii},
+            'manufactureDate': {'cmd': 65, 'sub':  None, 'fn': self._dec_week_year},
+            'timeDate':        {'cmd': 70, 'sub':  None, 'fn': self._dec_ts},
+            'setTimeDate':     {'cmd': 71, 'sub':  None, 'fn': self._dec_raw},
+            'firmwareRelease': {'cmd': 72, 'sub':  None, 'fn': self._dec_ascii_and_state},
+            'dayEnergy':       {'cmd': 78, 'sub':  0,    'fn': self._dec_int},
+            'weekEnergy':      {'cmd': 78, 'sub':  1,    'fn': self._dec_int},
+            'monthEnergy':     {'cmd': 78, 'sub':  3,    'fn': self._dec_int},
+            'yearEnergy':      {'cmd': 78, 'sub':  4,    'fn': self._dec_int},
+            'totalEnergy':     {'cmd': 78, 'sub':  5,    'fn': self._dec_int},
+            'partialEnergy':   {'cmd': 78, 'sub':  6,    'fn': self._dec_int},
+            'lastAlarms':      {'cmd': 86, 'sub':  None, 'fn': self._dec_alarms}
         }
 
     def open_port(self):
@@ -946,12 +952,13 @@ class AuroraInverter(object):
                                          (bytes, N))
         return _buffer
 
-    def send_cmd_with_crc(self, reading, globall=0, address=2, max_tries=3):
+    def send_cmd_with_crc(self, command, payload=None, globall=0, address=2, max_tries=3):
         """Send a command with CRC to the inverter and return the response.
 
 
             Inputs:
-                reading:    The inverter reading being sought. String.
+                command:    The inverter command being issued. String.
+                payload:    
                 globall:
                 address:    The inverter address to be used, normally 2.
                 max_tries:  The maximum number of attempts to send the data
@@ -963,12 +970,20 @@ class AuroraInverter(object):
 
         """
 
-        # get the applicable command and sub-command codes
-        cmd_num = self.commands[reading]['cmd']
-        sub_cmd = self.commands[reading]['sub']
+        # get the applicable command codes etc
+        if self.commands[command]['sub'] is not None:
+            # we have a sub-command
+            command_t = (address, self.commands[command]['cmd'], 
+                         self.commands[command]['sub'], globall)
+        elif payload is not None:
+            # we have no sub-command, but we have a payload
+            command_t = (address, self.commands[command]['cmd']) +  tuple([ord(b) for b in payload])
+        else:
+            # no sub-command or payload
+            command_t = (address, self.commands[command]['cmd'])
         # assemble our command
-        s = struct.Struct('4B')
-        _b = s.pack(*[b for b in (address, cmd_num, sub_cmd, globall)])
+        s = struct.Struct('%dB' % len(command_t))
+        _b = s.pack(*[b for b in command_t])
         # pad the command to 8 bytes
         _b_padded = self.pad(_b, 8)
         # add the CRC
@@ -982,7 +997,7 @@ class AuroraInverter(object):
                 time.sleep(self.command_delay)
                 # look for the response
                 _resp = self.read_with_crc()
-                decode_fn = self.commands[reading]['fn']
+                decode_fn = self.commands[command]['fn']
                 return decode_fn(_resp)
             except weewx.WeeWxIOError:
                 pass
