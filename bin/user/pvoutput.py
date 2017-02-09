@@ -229,7 +229,7 @@ class PVOutputThread(weewx.restx.RESTThread):
         else:
             # if we got here it is becase we have none of the required fields,
             # raise and AbortedPost exception and restx will skip posting
-            raise AbortedPost()
+            raise weewx.restx.AbortedPost()
 
         # convert to metric if necessary
         _metric_record = weewx.units.to_METRIC(_full_record)
@@ -261,7 +261,7 @@ class PVOutputThread(weewx.restx.RESTThread):
         _request = urllib2.Request(url=url)
         # if debug >= 2 then log some details of our request
         if weewx.debug >= 2:
-            syslog.syslog(syslog.LOG_DEBUG, "pvoutput: %s: url: %s payload: %s" % 
+            syslog.syslog(syslog.LOG_DEBUG, "pvoutput: %s: url: %s payload: %s" %
                               (self.protocol_name, url, urllib.urlencode(params)))
         # add our headers, in this case sid and api_key
         _request.add_header('X-Pvoutput-Apikey', self.api_key)

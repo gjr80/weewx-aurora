@@ -95,29 +95,29 @@ To use:
     # in the [[FieldMap]]. All aurora readings included in the [[FieldMap]]
     # must be a key from the user.aurora.AuroraInverter.commands dict.
     [[FieldMap]]
-        string1Voltage = str1V
-        string1Current = str1C
-        string1Power = str1P
-        string2Voltage = str2V
-        string2Current = str2C
-        string2Power = str2P
-        gridVoltage = gridV
-        gridCurrent = gridC
-        gridPower = gridP
-        gridFrequency = frequency
-        inverterTemp = inverterT
-        boosterTemp = boosterT
-        bulkVoltage = bulkV
-        isoResistance = isoR
-        bulkmidVoltage = bulkMidV
-        bulkdcVoltage = bulkDcV
-        leakdcCurrent = leakDcC
-        leakCurrent = leakC
-        griddcVoltage = gridDcV
-        gridavgVoltage = gridAvV
-        gridnVoltage = peakP
-        griddcFrequency = gridDcFreq
-        dayEnergy = dayEnergy
+        string1Voltage = getStr1V
+        string1Current = getStr1C
+        string1Power = getStr1P
+        string2Voltage = getStr2V
+        string2Current = getStr2C
+        string2Power = getStr2P
+        gridVoltage = getGridV
+        gridCurrent = getGridC
+        gridPower = getGridP
+        gridFrequency = getFrequency
+        inverterTemp = getInverterT
+        boosterTemp = getBoosterT
+        bulkVoltage = getBulkV
+        isoResistance = getIsoR
+        bulkmidVoltage = getBulkMidV
+        bulkdcVoltage = getBulkDcV
+        leakdcCurrent = getLeakDcC
+        leakCurrent = getLeakC
+        griddcVoltage = getGridDcV
+        gridavgVoltage = getGridAvV
+        gridnVoltage = getPeakP
+        griddcFrequency = getGridDcFreq
+        dayEnergy = getDayEnergy
 
 ##############################################################################
 
@@ -234,7 +234,7 @@ from weeutil.weeutil import option_as_list, to_bool
 
 # our name and version number
 DRIVER_NAME = 'Aurora'
-DRIVER_VERSION = '0.3'
+DRIVER_VERSION = '0.4'
 
 
 def logmsg(level, msg):
@@ -505,15 +505,20 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         """Initialise an object of type AuroroaDriver."""
 
         self.model = aurora_dict.get('model', 'Aurora')
-        logdbg('%s driver version is %s' % (self.model, DRIVER_VERSION))
+        logdbg('AuroraDriver: %s driver version is %s' % (self.model, DRIVER_VERSION))
         self.port = aurora_dict.get('port', '/dev/ttyUSB0')
         self.max_tries = int(aurora_dict.get('max_tries', 3))
         self.polling_interval = int(aurora_dict.get('loop_interval', 10))
-        logdbg('inverter will be polled on port %s every %d seconds' %
+        logdbg('AuroraDriver: Inverter will be polled on port %s every %d seconds' %
                    (self.port, self.polling_interval))
         self.address = int(aurora_dict.get('address', 2))
+        logdbg('AuroraDriver: Inverter address is %d' % self.address)
         self.use_inverter_time = to_bool(aurora_dict.get('use_inverter_time',
                                                          False))
+        if self.use_inverter_time:
+            logdbg('AuroraDriver: Inverter time will be used to timestamp data')
+        else:
+            logdbg('AuroraDriver: WeeWX system time will be used to timestamp data')
 
         # get an AuroraInverter object
         self.inverter = AuroraInverter(self.port)
@@ -521,7 +526,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         self.openPort()
 
         # is the inverter running ie global state '6' (Run)
-        self.running = self.do_cmd('state').global_state == 6
+        self.running = self.do_cmd('getState').global_state == 6
 
         # initialise last energy value
         self.last_energy = None
@@ -536,7 +541,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
             self.none_packet[src] = None
 
     def openPort(self):
-        """Open up the connection to the inverter."""
+        """Open the connection to the inverter."""
 
         self.inverter.open_port()
 
@@ -564,7 +569,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                     if self.running:
                         raw_packet = self.get_raw_packet()
                     else:
-                        self.running = self.do_cmd('state').global_state == 6
+                        self.running = self.do_cmd('getState').global_state == 6
                         if self.running:
                             raw_packet = self.get_raw_packet()
                         else:
@@ -574,7 +579,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                     # process raw data and return a dict that can be used as a
                     # LOOP packet
                     packet = self.process_raw_packet(raw_packet)
-                    # add in special or differential fields
+                    # add in special fields
                     if packet:
                         # dateTime
                         if not self.use_inverter_time:
@@ -608,13 +613,19 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         """Get the raw loop data from the inverter."""
 
         _packet = {}
+        # iterate over each reading we need to get
         for reading in self.manifest:
+            # get the reading
             _response = self.do_cmd(reading)
+            # If the inverter is running the set the running property and save
+            # the data. If the inverter is asleep set the running property
+            # only, there will be no data.
             if _response.global_state == 6:
                 # inverter is running
                 self.running = True
                 _packet[reading] = _response.data
             else:
+                # inverter is asleep
                 self.running = False
                 break
         return _packet
@@ -639,11 +650,11 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                 _packet[dest] = None
         return _packet
 
-    def do_cmd(self, reading, payload=None, globall=0):
+    def do_cmd(self, command, payload=None, globall=0):
         """Send a command to the inverter and return the decoded response.
 
         Inputs:
-            reading: One of the commands from the command vocabulary of the
+            command: One of the commands from the command vocabulary of the
                      AuroraInverter object, AuroraInverter.commands. String.
             globall: Global (globall=1) or Module (globall=0) measurements.
 
@@ -654,7 +665,9 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         """
 
         try:
-            return self.inverter.send_cmd_with_crc(reading, payload=payload, globall=globall)
+            return self.inverter.send_cmd_with_crc(command,
+                                                   payload=payload,
+                                                   globall=globall)
         except weewx.WeeWxIOError:
             return ResponseTuple(None, None, None)
 
@@ -671,7 +684,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         """
 
         # get the ts
-        _time_ts = self.do_cmd('timeDate').data
+        _time_ts = self.do_cmd('getTimeDate').data
         if _time_ts is None:
             # if it's None the inverter is asleep (or otherwise unavalable) so
             # raise a NotImplementedError
@@ -693,7 +706,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
 
         # check if the inverter is on line, we will get None if the inverter
         # cannot be contacted
-        _time_ts = self.do_cmd('timeDate').data
+        _time_ts = self.do_cmd('getTimeDate').data
         # if the inverter is not there then raise a NotImplementedError
         # otherwise continue
         if _time_ts is None:
@@ -771,7 +784,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
     def get_last_alarms(self):
         """Get the last four alarms."""
 
-        return self.do_cmd('lastAlarms').data
+        return self.do_cmd('getLastAlarms').data
 
     def get_dsp(self):
         """Get DSP data."""
@@ -793,31 +806,31 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
     def part_number(self):
         """The inverter part number."""
 
-        return self.do_cmd('partNumber').data
+        return self.do_cmd('getPartNumber').data
 
     @property
     def version(self):
         """The inverter version."""
 
-        return self.do_cmd('version').data
+        return self.do_cmd('getVersion').data
 
     @property
     def serial_number(self):
         """The inverter firmware release."""
 
-        return self.do_cmd('serialNumber').data
+        return self.do_cmd('getSerialNumber').data
 
     @property
     def manufacture_date(self):
         """The inverter firmware release."""
 
-        return self.do_cmd('manufactureDate').data
+        return self.do_cmd('getManufactureDate').data
 
     @property
     def firmware_rel(self):
         """The inverter firmware release."""
 
-        return self.do_cmd('firmwareRelease').data
+        return self.do_cmd('getFirmwareRelease').data
 
     @staticmethod
     def calculate_energy(newtotal, oldtotal):
@@ -882,50 +895,50 @@ class AuroraInverter(object):
         self.timeout = timeout
         self.wait_before_retry = wait_before_retry
         self.command_delay = command_delay
-        # Aurora driver readings that I know how to obtain. Listed against
-        # reading is the command and sub-command codes and applicable decode
-        # function.
+        # Commands that I know to obtain readings from the Aurora inverter.
+        # Listed against each command is the command and sub-command codes and
+        # applicable decode function.
         self.commands = {
-            'state':           {'cmd': 50, 'sub':  None, 'fn': self._dec_state},
-            'partNumber':      {'cmd': 52, 'sub':  None, 'fn': self._dec_ascii},
-            'version':         {'cmd': 58, 'sub':  None, 'fn': self._dec_ascii_and_state},
-            'gridV':           {'cmd': 59, 'sub':  1,    'fn': self._dec_float},
-            'gridC':           {'cmd': 59, 'sub':  2,    'fn': self._dec_float},
-            'gridP':           {'cmd': 59, 'sub':  3,    'fn': self._dec_float},
-            'frequency':       {'cmd': 59, 'sub':  4,    'fn': self._dec_float},
-            'bulkV':           {'cmd': 59, 'sub':  5,    'fn': self._dec_float},
-            'leakDcC':         {'cmd': 59, 'sub':  6,    'fn': self._dec_float},
-            'leakC':           {'cmd': 59, 'sub':  7,    'fn': self._dec_float},
-            'str1P':           {'cmd': 59, 'sub':  8,    'fn': self._dec_float},
-            'str2P':           {'cmd': 59, 'sub':  9,    'fn': self._dec_float},
-            'inverterT':       {'cmd': 59, 'sub': 21,    'fn': self._dec_float},
-            'boosterT':        {'cmd': 59, 'sub': 22,    'fn': self._dec_float},
-            'str1V':           {'cmd': 59, 'sub': 23,    'fn': self._dec_float},
-            'str1C':           {'cmd': 59, 'sub': 25,    'fn': self._dec_float},
-            'str2V':           {'cmd': 59, 'sub': 26,    'fn': self._dec_float},
-            'str2C':           {'cmd': 59, 'sub': 27,    'fn': self._dec_float},
-            'gridDcV':         {'cmd': 59, 'sub': 28,    'fn': self._dec_float},
-            'gridDcFreq':      {'cmd': 59, 'sub': 29,    'fn': self._dec_float},
-            'isoR':            {'cmd': 59, 'sub': 30,    'fn': self._dec_float},
-            'bulkDcV':         {'cmd': 59, 'sub': 31,    'fn': self._dec_float},
-            'gridAvV':         {'cmd': 59, 'sub': 32,    'fn': self._dec_float},
-            'bulkMidV':        {'cmd': 59, 'sub': 33,    'fn': self._dec_float},
-            'gridNV':          {'cmd': 59, 'sub': 34,    'fn': self._dec_float},
-            'dayPeakP':        {'cmd': 59, 'sub': 35,    'fn': self._dec_float},
-            'peakP':           {'cmd': 59, 'sub': 36,    'fn': self._dec_float},
-            'gridNPhV':        {'cmd': 59, 'sub': 38,    'fn': self._dec_float},
-            'serialNumber':    {'cmd': 63, 'sub':  None, 'fn': self._dec_ascii},
-            'manufactureDate': {'cmd': 65, 'sub':  None, 'fn': self._dec_week_year},
-            'timeDate':        {'cmd': 70, 'sub':  None, 'fn': self._dec_ts},
-            'setTimeDate':     {'cmd': 71, 'sub':  None, 'fn': self._dec_raw},
-            'firmwareRelease': {'cmd': 72, 'sub':  None, 'fn': self._dec_ascii_and_state},
-            'dayEnergy':       {'cmd': 78, 'sub':  0,    'fn': self._dec_int},
-            'weekEnergy':      {'cmd': 78, 'sub':  1,    'fn': self._dec_int},
-            'monthEnergy':     {'cmd': 78, 'sub':  3,    'fn': self._dec_int},
-            'yearEnergy':      {'cmd': 78, 'sub':  4,    'fn': self._dec_int},
-            'totalEnergy':     {'cmd': 78, 'sub':  5,    'fn': self._dec_int},
-            'partialEnergy':   {'cmd': 78, 'sub':  6,    'fn': self._dec_int},
-            'lastAlarms':      {'cmd': 86, 'sub':  None, 'fn': self._dec_alarms}
+            'getState':           {'cmd': 50, 'sub':  None, 'fn': self._dec_state},
+            'getPartNumber':      {'cmd': 52, 'sub':  None, 'fn': self._dec_ascii},
+            'getVersion':         {'cmd': 58, 'sub':  None, 'fn': self._dec_ascii_and_state},
+            'getGridV':           {'cmd': 59, 'sub':  1,    'fn': self._dec_float},
+            'getGridC':           {'cmd': 59, 'sub':  2,    'fn': self._dec_float},
+            'getGridP':           {'cmd': 59, 'sub':  3,    'fn': self._dec_float},
+            'getFrequency':       {'cmd': 59, 'sub':  4,    'fn': self._dec_float},
+            'getBulkV':           {'cmd': 59, 'sub':  5,    'fn': self._dec_float},
+            'getLeakDcC':         {'cmd': 59, 'sub':  6,    'fn': self._dec_float},
+            'getLeakC':           {'cmd': 59, 'sub':  7,    'fn': self._dec_float},
+            'getStr1P':           {'cmd': 59, 'sub':  8,    'fn': self._dec_float},
+            'getStr2P':           {'cmd': 59, 'sub':  9,    'fn': self._dec_float},
+            'getInverterT':       {'cmd': 59, 'sub': 21,    'fn': self._dec_float},
+            'getBoosterT':        {'cmd': 59, 'sub': 22,    'fn': self._dec_float},
+            'getStr1V':           {'cmd': 59, 'sub': 23,    'fn': self._dec_float},
+            'getStr1C':           {'cmd': 59, 'sub': 25,    'fn': self._dec_float},
+            'getStr2V':           {'cmd': 59, 'sub': 26,    'fn': self._dec_float},
+            'getStr2C':           {'cmd': 59, 'sub': 27,    'fn': self._dec_float},
+            'getGridDcV':         {'cmd': 59, 'sub': 28,    'fn': self._dec_float},
+            'getGridDcFreq':      {'cmd': 59, 'sub': 29,    'fn': self._dec_float},
+            'getIsoR':            {'cmd': 59, 'sub': 30,    'fn': self._dec_float},
+            'getBulkDcV':         {'cmd': 59, 'sub': 31,    'fn': self._dec_float},
+            'getGridAvV':         {'cmd': 59, 'sub': 32,    'fn': self._dec_float},
+            'getBulkMidV':        {'cmd': 59, 'sub': 33,    'fn': self._dec_float},
+            'getGridNV':          {'cmd': 59, 'sub': 34,    'fn': self._dec_float},
+            'getDayPeakP':        {'cmd': 59, 'sub': 35,    'fn': self._dec_float},
+            'getPeakP':           {'cmd': 59, 'sub': 36,    'fn': self._dec_float},
+            'getGridNPhV':        {'cmd': 59, 'sub': 38,    'fn': self._dec_float},
+            'getSerialNumber':    {'cmd': 63, 'sub':  None, 'fn': self._dec_ascii},
+            'getManufactureDate': {'cmd': 65, 'sub':  None, 'fn': self._dec_week_year},
+            'getTimeDate':        {'cmd': 70, 'sub':  None, 'fn': self._dec_ts},
+            'setTimeDate':        {'cmd': 71, 'sub':  None, 'fn': self._dec_raw},
+            'getFirmwareRelease': {'cmd': 72, 'sub':  None, 'fn': self._dec_ascii_and_state},
+            'getDayEnergy':       {'cmd': 78, 'sub':  0,    'fn': self._dec_int},
+            'getWeekEnergy':      {'cmd': 78, 'sub':  1,    'fn': self._dec_int},
+            'getMonthEnergy':     {'cmd': 78, 'sub':  3,    'fn': self._dec_int},
+            'getYearEnergy':      {'cmd': 78, 'sub':  4,    'fn': self._dec_int},
+            'getTotalEnergy':     {'cmd': 78, 'sub':  5,    'fn': self._dec_int},
+            'getPartialEnergy':   {'cmd': 78, 'sub':  6,    'fn': self._dec_int},
+            'getLastAlarms':      {'cmd': 86, 'sub':  None, 'fn': self._dec_alarms}
         }
 
     def open_port(self):
@@ -933,9 +946,10 @@ class AuroraInverter(object):
 
         self.serial_port = serial.Serial(port=self.port, baudrate=self.baudrate,
                                          timeout=self.timeout)
-        logdbg("Opened serial port %s; baud %d; timeout %.2f" % (self.port,
-                                                                 self.baudrate,
-                                                                 self.timeout))
+        logdbg("AuroraInverter: Opened serial port %s; baud %d; timeout %.2f"
+                   % (self.port,
+                      self.baudrate,
+                      self.timeout))
 
     def close_port(self):
         """Close a serial port."""
@@ -961,8 +975,8 @@ class AuroraInverter(object):
         try:
             N = self.serial_port.write(data)
         except serial.serialutil.SerialException, e:
-            logerr("SerialException on write.")
-            logerr("  ***** %s" % e)
+            logerr("AuroraInverter: SerialException on write.")
+            logerr("                  ***** %s" % e)
             # reraise as a weeWX error I/O error:
             raise weewx.WeeWxIOError(e)
         # Python version 2.5 and earlier returns 'None', so it cannot be used
@@ -988,9 +1002,9 @@ class AuroraInverter(object):
         try:
             _buffer = self.serial_port.read(bytes)
         except serial.serialutil.SerialException, e:
-            logerr("SerialException on read.")
-            logerr("  ***** %s" % e)
-            logerr("  ***** Is there a competing process running??")
+            logerr("AuroraInverter: SerialException on read.")
+            logerr("                  ***** %s" % e)
+            logerr("                  ***** Is there a competing process running??")
             raise
             # reraise as a weeWX error I/O error:
             raise weewx.WeeWxIOError(e)
@@ -1000,7 +1014,8 @@ class AuroraInverter(object):
                                          (bytes, N))
         return _buffer
 
-    def send_cmd_with_crc(self, command, payload=None, globall=0, address=2, max_tries=3):
+    def send_cmd_with_crc(self, command, payload=None, globall=0,
+                          address=2, max_tries=3):
         """Send a command with CRC to the inverter and return the response.
 
 
@@ -1053,8 +1068,8 @@ class AuroraInverter(object):
                     return _resp
             except weewx.WeeWxIOError:
                 pass
-            logdbg("send_cmd_with_crc: try #%d" % (count + 1,))
-        logerr("Unable to send or receive data to/from the inverter")
+            logdbg2("send_cmd_with_crc: try #%d" % (count + 1,))
+        logdbg("Unable to send or receive data to/from the inverter")
         raise weewx.WeeWxIOError("Unable to send or receive data to/from the inverter")
 
     def read_with_crc(self, bytes=8):
@@ -1136,9 +1151,9 @@ class AuroraInverter(object):
         if crc == crc_bytes:
             return data
         else:
-            logerr("Inverter response failed CRC check:")
-            logerr("  ***** response=%s" % (format_byte_to_hex(buffer)))
-            logerr("  *****     data=%s        CRC=%s  expected CRC=%s" %
+            logerr("AuroraInverter: Inverter response failed CRC check:")
+            logerr("                  ***** response=%s" % (format_byte_to_hex(buffer)))
+            logerr("                  *****     data=%s        CRC=%s  expected CRC=%s" %
                        (format_byte_to_hex(data),
                        format_byte_to_hex(crc_bytes),
                        format_byte_to_hex(crc)))
@@ -1178,7 +1193,8 @@ class AuroraInverter(object):
         PAD = ''.join(['\x00' for a in range(size)])
 
         if size > len(PAD):
-            raise DataFormatError("pad: string to be padded must be <= %d characters in length" % size)
+            raise DataFormatError("pad: string to be padded must be <= %d characters in length" %
+                                      size)
         return buf + PAD[:(size-len(buf))]
 
     @staticmethod
@@ -1568,18 +1584,14 @@ if __name__ == '__main__':
                       help='Output LOOP packets indefinitely.')
     parser.add_option('--get-status', dest='status', action='store_true',
                       help='Display inverter status.')
+    parser.add_option('--get-info', dest='info', action='store_true',
+                      help='Display inverter information.')
     parser.add_option('--get-readings', dest='readings', action='store_true',
                       help='Display current inverter readings.')
     parser.add_option('--get-time', dest='get_time', action='store_true',
                       help='Display current inverter date-time.')
-    parser.add_option('--get-info', dest='info', action='store_true',
-                      help='Display inverter information.')
     parser.add_option('--set-time', dest='set_time', action='store_true',
                       help='Set inverter date-time to the current system date-time.')
-    parser.add_option('--date-time', dest='date_time', type=str,
-                      metavar="YYYY-mm-ddTHH:MM:SS",
-                      help='Set inverter to this date-time. Format is '
-                      ' YYYY-mm-ddTHH:MM:SS.')
     (options, args) = parser.parse_args()
 
     if options.version:
@@ -1604,7 +1616,7 @@ if __name__ == '__main__':
             for packet in inverter.genLoopPackets():
                 print "LOOP:  ", timestamp_to_string(packet['dateTime']), sort(packet)
     elif options.status:
-        response_rt = inverter.do_cmd('state')
+        response_rt = inverter.do_cmd('getState')
         print
         print "%s Status:" % inverter.model
         if response_rt.transmission_state is not None:
@@ -1658,46 +1670,46 @@ if __name__ == '__main__':
         print "%s Current Readings:" % inverter.model
         print '-----------------------------------------------'
         print "Grid:"
-        print "%29s: %sV" % ('Voltage', inverter.do_cmd('gridV').data)
-        print "%29s: %sA" % ('Current', inverter.do_cmd('gridC').data)
-        print "%29s: %sW" % ('Power', inverter.do_cmd('gridP').data)
-        print "%29s: %sHz" % ('Frequency', inverter.do_cmd('frequency').data)
-        print "%29s: %sV" % ('Average Voltage', inverter.do_cmd('gridAvV').data)
-        print "%29s: %sV" % ('Neutral Voltage', inverter.do_cmd('gridNV').data)
-        print "%29s: %sV" % ('Neutral Phase Voltage', inverter.do_cmd('gridNPhV').data)
+        print "%29s: %sV" % ('Voltage', inverter.do_cmd('getGridV').data)
+        print "%29s: %sA" % ('Current', inverter.do_cmd('getGridC').data)
+        print "%29s: %sW" % ('Power', inverter.do_cmd('getGridP').data)
+        print "%29s: %sHz" % ('Frequency', inverter.do_cmd('getFrequency').data)
+        print "%29s: %sV" % ('Average Voltage', inverter.do_cmd('getGridAvV').data)
+        print "%29s: %sV" % ('Neutral Voltage', inverter.do_cmd('getGridNV').data)
+        print "%29s: %sV" % ('Neutral Phase Voltage', inverter.do_cmd('getGridNPhV').data)
         print '-----------------------------------------------'
         print "String 1:"
-        print "%29s: %sV" % ('Voltage', inverter.do_cmd('str1V').data)
-        print "%29s: %sA" % ('Current', inverter.do_cmd('str1C').data)
-        print "%29s: %sW" % ('Power', inverter.do_cmd('str1P').data)
+        print "%29s: %sV" % ('Voltage', inverter.do_cmd('getStr1V').data)
+        print "%29s: %sA" % ('Current', inverter.do_cmd('getStr1C').data)
+        print "%29s: %sW" % ('Power', inverter.do_cmd('getStr1P').data)
         print '-----------------------------------------------'
         print "String 2:"
-        print "%29s: %sV" % ('Voltage', inverter.do_cmd('str2V').data)
-        print "%29s: %sA" % ('Current', inverter.do_cmd('str2C').data)
-        print "%29s: %sW" % ('Power', inverter.do_cmd('str2P').data)
+        print "%29s: %sV" % ('Voltage', inverter.do_cmd('getStr2V').data)
+        print "%29s: %sA" % ('Current', inverter.do_cmd('getStr2C').data)
+        print "%29s: %sW" % ('Power', inverter.do_cmd('getStr2P').data)
         print '-----------------------------------------------'
         print "Inverter:"
-        print "%29s: %sV" % ('Voltage (DC/DC Booster)', inverter.do_cmd('gridDcV').data)
-        print "%29s: %sHz" % ('Frequency (DC/DC Booster)', inverter.do_cmd('gridDcFreq').data)
-        print "%29s: %sC" % ('Inverter Temp', inverter.do_cmd('inverterT').data)
-        print "%29s: %sC" % ('Booster Temp', inverter.do_cmd('boosterT').data)
-        print "%29s: %sW" % ("Today's Peak Power", inverter.do_cmd('dayPeakP').data)
-        print "%29s: %sW" % ("Lifetime Peak Power", inverter.do_cmd('peakP').data)
-        print "%29s: %sWh" % ("Today's Energy", inverter.do_cmd('dayEnergy').data)
-        print "%29s: %sWh" % ("This Weeks's Energy", inverter.do_cmd('weekEnergy').data)
-        print "%29s: %sWh" % ("This Month's Energy", inverter.do_cmd('monthEnergy').data)
-        print "%29s: %sWh" % ("This Year's Energy", inverter.do_cmd('yearEnergy').data)
-        print "%29s: %sWh" % ("Partial Energy", inverter.do_cmd('partialEnergy').data)
-        print "%29s: %sWh" % ("Lifetime Energy", inverter.do_cmd('totalEnergy').data)
+        print "%29s: %sV" % ('Voltage (DC/DC Booster)', inverter.do_cmd('getGridDcV').data)
+        print "%29s: %sHz" % ('Frequency (DC/DC Booster)', inverter.do_cmd('getGridDcFreq').data)
+        print "%29s: %sC" % ('Inverter Temp', inverter.do_cmd('getInverterT').data)
+        print "%29s: %sC" % ('Booster Temp', inverter.do_cmd('getBoosterT').data)
+        print "%29s: %sW" % ("Today's Peak Power", inverter.do_cmd('getDayPeakP').data)
+        print "%29s: %sW" % ("Lifetime Peak Power", inverter.do_cmd('getPeakP').data)
+        print "%29s: %sWh" % ("Today's Energy", inverter.do_cmd('getDayEnergy').data)
+        print "%29s: %sWh" % ("This Weeks's Energy", inverter.do_cmd('getWeekEnergy').data)
+        print "%29s: %sWh" % ("This Month's Energy", inverter.do_cmd('getMonthEnergy').data)
+        print "%29s: %sWh" % ("This Year's Energy", inverter.do_cmd('getYearEnergy').data)
+        print "%29s: %sWh" % ("Partial Energy", inverter.do_cmd('getPartialEnergy').data)
+        print "%29s: %sWh" % ("Lifetime Energy", inverter.do_cmd('getTotalEnergy').data)
         print
-        print "%29s: %sV" % ('Bulk Voltage', inverter.do_cmd('bulkV').data)
-        print "%29s: %sV" % ('Bulk DC Voltage', inverter.do_cmd('bulkDcV').data)
-        print "%29s: %sV" % ('Bulk Mid Voltage', inverter.do_cmd('bulkMidV').data)
+        print "%29s: %sV" % ('Bulk Voltage', inverter.do_cmd('getBulkV').data)
+        print "%29s: %sV" % ('Bulk DC Voltage', inverter.do_cmd('getBulkDcV').data)
+        print "%29s: %sV" % ('Bulk Mid Voltage', inverter.do_cmd('getBulkMidV').data)
         print
-        print "%29s: %sMOhms" % ('Insulation Resistance', inverter.do_cmd('isoR').data)
+        print "%29s: %sMOhms" % ('Insulation Resistance', inverter.do_cmd('getIsoR').data)
         print
-        print "%29s: %sA" % ('Leakage Current(Inverter)', inverter.do_cmd('leakC').data)
-        print "%29s: %sA" % ('Leakage Current(Booster)', inverter.do_cmd('leakDcC').data)
+        print "%29s: %sA" % ('Leakage Current(Inverter)', inverter.do_cmd('getLeakC').data)
+        print "%29s: %sA" % ('Leakage Current(Booster)', inverter.do_cmd('getLeakDcC').data)
 
     elif options.get_time:
         inverter_ts = inverter.getTime()
