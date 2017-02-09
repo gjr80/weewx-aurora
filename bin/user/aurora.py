@@ -17,9 +17,10 @@
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see http://www.gnu.org/licenses/.
 #
-# Version: 0.3                                      Date: 7 February 2017
+# Version: 0.4                                      Date: 9 February 2017
 #
 # Revision History
+#   9 February 2017     v0.4    - implemented setTime() method
 #   7 February 2017     v0.3    - hex inverter respone streams now printed as
 #                                 space separated bytes
 #                               - fixed various typos
@@ -658,29 +659,76 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
             return ResponseTuple(None, None, None)
 
     def getTime(self):
-        """Get inverter system time and return as an epoch timestamp."""
+        """Get inverter system time and return as an epoch timestamp.
+
+        During startup weeWX uses the 'console' time if available. The way the
+        driver tells weeWX the 'console' time is not available is by raising a
+        NotImplementedError error when getTime is called. This is what is
+        normally done for stations that do not keep track of time. In the case
+        of the Aurora inverter, when it is asleep we cannot get the time so in
+        that case raise a NotImplementedError, if the inverter is awake then
+        return the time.
+        """
 
         # get the ts
         _time_ts = self.do_cmd('timeDate').data
-        # We can only get the time from the inverter if it is awake, if it is
-        # asleep we will receive None as the ts. We need to perform a little
-        # trickery if we are to keep StdArchive from failing if we startup when
-        # the inverter is asleep. If we have a non-None ts then return it, but
-        # if it is None then raise a NotImplementedError.
         if _time_ts is None:
+            # if it's None the inverter is asleep (or otherwise unavalable) so
+            # raise a NotImplementedError
             raise NotImplementedError("Method 'getTime' not implemented")
         else:
+            #  otherwise return the time
             return _time_ts
 
     def setTime(self):
-        """Set inverter system time."""
+        """Set inverter system time.
 
+        The weeWX StdTimeSync service will periodically check the inverters
+        internal clock and use setTime() to adjust the inverters clock if
+        required. As the inverters clock cannot be read or set when the
+        inverter is asleep, setTime() will take one of two actions. If the
+        inverter is asleep then a NotImplementedError is raised, if the
+        inverter is awake then the time is set.
+        """
+
+        # check if the inverter is on line, we will get None if the inverter
+        # cannot be contacted
         _time_ts = self.do_cmd('timeDate').data
+        # if the inverter is not there then raise a NotImplementedError
+        # otherwise continue
         if _time_ts is None:
             raise NotImplementedError("Method 'setTime' not implemented")
         else:
-            _ts = int(time.time() + 0.75)
-            self.do_cmd('setTimeDate', payload=_ts)
+            # get the current system time, offset by 2 seconds to allow for
+            # rounding (0.5) and the delay in the command being issued and
+            # acted on by the inverter (1.5)
+            _ts = int(time.time() + 2)
+            # the inverters epoch is midnight 1 January 2000 so offset our
+            # epoch timestamp
+            _inv_ts = _ts - 946648800
+            # pack the value into a Struct object so we can deal with the bytes
+            s = struct.Struct('>i')
+            _payload = s.pack(_inv_ts)
+            # send the command and get the response
+            _response = self.do_cmd('setTimeDate', payload=_payload)
+            # The inverter response to a successful time set is to return
+            # 8 bytes including transmission state and global state. The
+            # remainder of the 8 bytes is CRC (last 2 bytes) and 0x00 for
+            # remaining bytes. We will get the response as a Response Tuple
+            # where we can check the transmission state and global state.
+            if _response.transmission_state == 0 and _response.global_state == 6:
+                # good response so log it
+                loginf("setTime: Inverter time set")
+            else:
+                # something went wrong, it's not fatal but we need to log the
+                # failure and the returned states
+                logerr("setTime: Inverter time was not set")
+                logerr("setTime:   ***** transmission state=%d (%s)" %
+                           (_response.transmission_state,
+                            TRANSMISSION[response_rt.transmission_state]))
+                logerr("setTime:   ***** global state=%d (%s)" %
+                           (_response.global_state,
+                            GLOBAL[response_rt.global_state]))
 
     def get_cumulated_energy(self, period=None):
         """Get 'cumulated' energy readings.
@@ -958,7 +1006,9 @@ class AuroraInverter(object):
 
             Inputs:
                 command:    The inverter command being issued. String.
-                payload:    
+                payload:    Data to be sent to the inverter as part of the
+                            command. Will occupy part or all of bytes 2,3,4,5,
+                            6 and 7. Currently only used by setTime. String.
                 globall:
                 address:    The inverter address to be used, normally 2.
                 max_tries:  The maximum number of attempts to send the data
@@ -973,7 +1023,7 @@ class AuroraInverter(object):
         # get the applicable command codes etc
         if self.commands[command]['sub'] is not None:
             # we have a sub-command
-            command_t = (address, self.commands[command]['cmd'], 
+            command_t = (address, self.commands[command]['cmd'],
                          self.commands[command]['sub'], globall)
         elif payload is not None:
             # we have no sub-command, but we have a payload
@@ -988,7 +1038,7 @@ class AuroraInverter(object):
         _b_padded = self.pad(_b, 8)
         # add the CRC
         _data_with_crc = _b_padded + self.word2struct(self.crc16(_b_padded))
-        # now send the data retrying up to max_tries times
+        # now send the assembled command retrying up to max_tries times
         for count in xrange(max_tries):
             logdbg2("sent %s" % format_byte_to_hex(_data_with_crc))
             try:
@@ -997,8 +1047,10 @@ class AuroraInverter(object):
                 time.sleep(self.command_delay)
                 # look for the response
                 _resp = self.read_with_crc()
-                decode_fn = self.commands[command]['fn']
-                return decode_fn(_resp)
+                if self.commands[command]['fn'] is not None:
+                    return self.commands[command]['fn'](_resp)
+                else:
+                    return _resp
             except weewx.WeeWxIOError:
                 pass
             logdbg("send_cmd_with_crc: try #%d" % (count + 1,))
@@ -1343,6 +1395,32 @@ class AuroraInverter(object):
             return ResponseTuple(None, None, None)
 
     @staticmethod
+    def _dec_raw(v):
+        """Decode a response containing inverter state and unknown data.
+
+        Decode a 6 byte response in the following format:
+
+        byte 0: transmission state
+        byte 1: global state
+        byte 2: data 4
+        byte 3: data 3
+        byte 4: data 2
+        byte 5: data 1 - least significant character
+
+        Input:
+            v: bytearray containing the 6 byte response
+
+        Returns:
+            A ResponseTuple where the transmission and global attributes are
+            None and the data attribute is a 4 character ASCII string.
+        """
+
+        try:
+            return AuroraInverter._dec_ascii_and_state(v)
+        except (IndexError, TypeError):
+            return ResponseTuple(None, None, None)
+
+    @staticmethod
     def _dec_alarms(v):
         """Decode a response contain last 4 alarms and inverter state.
 
@@ -1457,6 +1535,7 @@ class ResponseTuple(tuple):
 #   --get-info      - display inverter information
 #
 
+
 if __name__ == '__main__':
 
     # python imports
@@ -1496,7 +1575,7 @@ if __name__ == '__main__':
     parser.add_option('--get-info', dest='info', action='store_true',
                       help='Display inverter information.')
     parser.add_option('--set-time', dest='set_time', action='store_true',
-                      help='Set inverter date-time.')
+                      help='Set inverter date-time to the current system date-time.')
     parser.add_option('--date-time', dest='date_time', type=str,
                       metavar="YYYY-mm-ddTHH:MM:SS",
                       help='Set inverter to this date-time. Format is '
@@ -1621,23 +1700,22 @@ if __name__ == '__main__':
         print "%29s: %sA" % ('Leakage Current(Booster)', inverter.do_cmd('leakDcC').data)
 
     elif options.get_time:
-        inverter_ts = inverter.do_cmd('timeDate').data
+        inverter_ts = inverter.getTime()
         _error = inverter_ts - time.time()
         print
         print "Inverter date-time is %s" % (timestamp_to_string(inverter_ts))
         print "    Clock error is %.3f seconds (positive is fast)" % _error
     elif options.set_time:
-        print "option --set-time not yet implemented."
-        # if options.date_time:
-            # # There is a --date-time but is it valid.
-            # try:
-                # _dt = datetime.datetime.strptime(options.date_time,
-                                                 # "%Y-%m-%dT%H:%M:%S")
-                # _ts = time.mktime(_dt.timetuple())
-            # except ValueError:
-                # # could not convert --date-time
-                # _msg = "Invalid --date-time option."
-                # sys.exit(_msg)
-            # # If we made it here we have a valid _ts
-            # inverter.settime(_ts)
-
+        inverter_ts = inverter.getTime()
+        _error = inverter_ts - time.time()
+        print
+        print "Current inverter date-time is %s" % (timestamp_to_string(inverter_ts))
+        print "    Clock error is %.3f seconds (positive is fast)" % _error
+        print
+        print "Setting time..."
+        inverter.setTime()
+        inverter_ts = inverter.getTime()
+        _error = inverter_ts - time.time()
+        print
+        print "Updated inverter date-time is %s" % (timestamp_to_string(inverter_ts))
+        print "    Clock error is %.3f seconds (positive is fast)" % _error
