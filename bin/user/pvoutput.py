@@ -167,12 +167,12 @@ class PVOutputThread(weewx.restx.RESTThread):
             self.max_batch_size = 30
             self.update_period = 14
         # Now summarize what we are doing in a few syslog DEBUG lines
-        syslog.syslog(syslog.LOG_DEBUG, "server url=%s" % self.server_url)
+        syslog.syslog(syslog.LOG_DEBUG, "pvoutput: server url=%s" % self.server_url)
         syslog.syslog(syslog.LOG_DEBUG,
-                      "cumulative_energy=%s net=%s net_delay=%d tariffs=%s" %
+                      "pvoutput: cumulative_energy=%s net=%s net_delay=%d tariffs=%s" %
                       (self.cumulative, self.net, self.net_delay, self.tariffs))
         syslog.syslog(syslog.LOG_DEBUG,
-                      "max batch size=%d max update period=%d days" %
+                      "pvoutput: max batch size=%d max update period=%d days" %
                       (self.max_batch_size, self.update_period))
 
     def process_record(self, record, dbmanager):
@@ -227,9 +227,9 @@ class PVOutputThread(weewx.restx.RESTThread):
                     # we have one, break so we can process the record
                     break
         else:
-            # if we got here it is becase we have none of the required fields
-            # therefore we cannot post so just return
-            return
+            # if we got here it is becase we have none of the required fields,
+            # raise and AbortedPost exception and restx will skip posting
+            raise AbortedPost()
 
         # convert to metric if necessary
         _metric_record = weewx.units.to_METRIC(_full_record)
