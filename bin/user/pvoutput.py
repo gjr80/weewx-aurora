@@ -17,12 +17,14 @@
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see http://www.gnu.org/licenses/.
 #
-# Version: 0.2                                      Date: 7 February 2017
+# Version: 0.2.1                                    Date: 13 February 2017
 #
 # Revision History
+#  13 February 2017     v0.2.1  - fixed issue where an uncaught socket.timeout
+#                                 exception would crash PVOutputThread
 #   7 February 2017     v0.2    - check to ensure that PVOutputThread has the
 #                                 minimum required fields to post a status to
-#                                 PVOutput.
+#                                 PVOutput
 #   17 December 2016    v0.1    - initial release
 #
 """Classes to interract with the PVOutput API.
@@ -360,7 +362,7 @@ class PVOutputThread(weewx.restx.RESTThread):
                 # Provide method for derived classes to behave otherwise if
                 # necessary.
                 self.handle_code(_response.code, _count+1)
-            except (urllib2.URLError, httplib.BadStatusLine, httplib.IncompleteRead), e:
+            except (urllib2.URLError, socket.error, httplib.BadStatusLine, httplib.IncompleteRead), e:
                 # An exception was thrown. By default, log it and try again.
                 # Provide method for derived classes to behave otherwise if
                 # necessary.
