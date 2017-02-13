@@ -536,8 +536,8 @@ class PVOutputAPI(object):
     def __init__(self, **kwargs):
         """"Initialiase the PVOutputAPI object."""
 
-        self.sid = kwargs.get('sid', read_sid())
-        self.api_key = kwargs.get('api_key', read_api_key())
+        self.sid = kwargs.get('sid')
+        self.api_key = kwargs.get('api_key')
         self.base_url = kwargs.get('base_url', 'http://pvoutput.org')
         self.max_tries = kwargs.get('max_tries', 3)
         self.retry_wait = kwargs.get('retry_wait', 2)
@@ -861,8 +861,8 @@ class PVOutputAPI(object):
             # if we failed to upload the records sucessfully
             if _status != "1":
                 # get a timestamp of the record
-                datetime_dt = datetime.datetime.strptime("%Y%m%d %H;%M",
-                                                         " ".join(_date, _time))
+                datetime_dt = datetime.datetime.strptime(" ".join(_date, _time),
+                                                         "%Y%m%d %H;%M")
                 datetime_ts = time.mktime(datetime_dt.timetuple())
                 # raise the error
                 raise PVUploadError("addbatchstatus: Failed to upload status for %s" %
