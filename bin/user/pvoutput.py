@@ -843,9 +843,9 @@ class PVOutputAPI(object):
         results = response.split(";")
         # did we get the same number of responses as records we sent?
         if len(results) != len(records):
-            raise PVUploadError("addbatchstatus: Unexpected number results.")
+            raise PVUploadError("addbatchstatus: Unexpected number of results.")
         # Now go through each records result and check for success. If a record
-        # failed to upload then log raise it.
+        # failed to upload then log it and at the end raise it.
         for _result in results:
             # split an individual records result into its component fields
             _date, _time, _status = _result.split(",")
