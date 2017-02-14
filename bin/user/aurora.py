@@ -220,7 +220,6 @@ The options can be selected using:
 """
 
 from __future__ import with_statement
-import binascii
 import serial
 import struct
 import syslog
@@ -631,7 +630,15 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         return _packet
 
     def process_raw_packet(self, raw_packet):
-        """Create a weeWX loop packet from a raw loop data."""
+        """Create a limited weeWX loop packet from a raw loop data.
+
+        Input:
+            raw_packet: A dict holding unmapped raw data retireved from the
+                        inverter.
+
+        Returns:
+            A limited weeWX loop packet of mapped raw inverter data.
+        """
 
         # map raw packet readings to loop packet fields using the field map
         _packet = {}
@@ -681,6 +688,9 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         of the Aurora inverter, when it is asleep we cannot get the time so in
         that case raise a NotImplementedError, if the inverter is awake then
         return the time.
+
+        Returns:
+            An epoch timestamp representing the inverter date-time.
         """
 
         # get the ts
@@ -852,17 +862,17 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         a dict of commands to be used to obtain raw loop data from the
         inverter.
 
-            Input:
-                inverter_dict: An inverter config dict
+        Input:
+            inverter_dict: An inverter config dict
 
-            Returns:
-                Tuple consisting of (field_map, manifest) where:
+        Returns:
+            Tuple consisting of (field_map, manifest) where:
 
-                field_map:  A is a dict mapping Aurora readings to loop packet
-                            fields.
-                manifest:   A dict of inverter readings and their associated
-                            command parameters to be used as the raw data used
-                            as the basis for a loop packet.
+            field_map:  A is a dict mapping Aurora readings to loop packet
+                        fields.
+            manifest:   A dict of inverter readings and their associated
+                        command parameters to be used as the raw data used as
+                        the basis for a loop packet.
         """
 
         _manifest = []
@@ -966,10 +976,10 @@ class AuroraInverter(object):
 
         Sends a data string to the inverter.
 
-            Input:
-                data: A string containing a sequence of bytes to be sent to the
-                      inverter. Usually a sequence of bytes that have been
-                      packed into a string.
+        Input:
+            data: A string containing a sequence of bytes to be sent to the
+                  inverter. Usually a sequence of bytes that have been packed
+                  into a string.
         """
 
         try:
@@ -991,12 +1001,12 @@ class AuroraInverter(object):
         Read a given number of bytes from the inverter. If the incorrect number
         of bytes is received then raise a WeeWxIOError().
 
-            Input:
-                bytes: The number of bytes to be read.
+        Input:
+            bytes: The number of bytes to be read.
 
-            Returns:
-                A string of length bytes containing the data read from the
-                inverter.
+        Returns:
+            A string of length bytes containing the data read from the
+            inverter.
         """
 
         try:
@@ -1018,21 +1028,18 @@ class AuroraInverter(object):
                           address=2, max_tries=3):
         """Send a command with CRC to the inverter and return the response.
 
+        Inputs:
+            command:    The inverter command being issued. String.
+            payload:    Data to be sent to the inverter as part of the command.
+                        Will occupy part or all of bytes 2,3,4,5,6 and 7.
+                        Currently only used by setTime. String.
+            globall:
+            address:    The inverter address to be used, normally 2.
+            max_tries:  The maximum number of attempts to send the data before
+                        an error is raised.
 
-            Inputs:
-                command:    The inverter command being issued. String.
-                payload:    Data to be sent to the inverter as part of the
-                            command. Will occupy part or all of bytes 2,3,4,5,
-                            6 and 7. Currently only used by setTime. String.
-                globall:
-                address:    The inverter address to be used, normally 2.
-                max_tries:  The maximum number of attempts to send the data
-                            before an error is raised.
-
-            Returns:
-                The decoded inverter response to the command as a Response
-                Tuple.
-
+        Returns:
+            The decoded inverter response to the command as a Response Tuple.
         """
 
         # get the applicable command codes etc
@@ -1077,12 +1084,13 @@ class AuroraInverter(object):
 
         Read a response from the inverter, check the CRC and if valid strip the
         CRC and return the data pay load.
-            Input:
-                bytes: The number of bytes to be read.
 
-            Returns:
-                A string of length bytes containing the data read from the
-                inverter.
+        Input:
+            bytes: The number of bytes to be read.
+
+        Returns:
+            A string of length bytes containing the data read from the
+            inverter.
         """
 
         # read the response
@@ -1163,12 +1171,11 @@ class AuroraInverter(object):
     def word2struct(i):
         """Take a 2 byte word and reverse the byte order.
 
-            Input:
-                i: A 2 byte string containing the bytes to be processed.
+        Input:
+            i: A 2 byte string containing the bytes to be processed.
 
-            Returns:
-                A 2 byte string consisting of the input bytes but in reverse
-                order.
+        Returns:
+            A 2 byte string consisting of the input bytes but in reverse order.
         """
 
         s = struct.Struct('2B')
@@ -1182,12 +1189,12 @@ class AuroraInverter(object):
         Pad a string with nulls to make it a given size. If the string to be
         padded is longer than size then an exception is raised.
 
-            Inputs:
-                buff: The string to be padded
-                size: The length of the padded string
+        Inputs:
+            buff: The string to be padded
+            size: The length of the padded string
 
-            Returns:
-                A padded string of length size.
+        Returns:
+            A padded string of length size.
         """
 
         PAD = ''.join(['\x00' for a in range(size)])
@@ -1472,12 +1479,12 @@ class AuroraInverter(object):
 def format_byte_to_hex(bytes):
     """Format a sequence of bytes as a string of space separated hex bytes.
 
-        Input:
-            bytes: A string or sequence containing the bytes to be formatted.
+    Input:
+        bytes: A string or sequence containing the bytes to be formatted.
 
-        Returns:
-            A string of space separated hex digit pairs representing the input
-            byte sequence.
+    Returns:
+        A string of space separated hex digit pairs representing the input byte
+        sequence.
     """
 
     return ' '.join(['%02X' % ord(b) for b in bytes])
