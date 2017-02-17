@@ -110,6 +110,70 @@ The *Aurora* extension can be installed manually or automatically using the *wee
 
 1.  Save *weewx.conf*.
 
+1.  Edit *$BIN_ROOT/user/extension.py*:
+
+        $ vi extensions.py
+
+1.  Add the following lines to *extensions.py*:
+
+        # ============================================================================
+        #                  Aurora units definitions and functions
+        # ============================================================================
+        
+        import weewx.units
+        
+        # create groups for frequency and resistance
+        weewx.units.USUnits['group_frequency'] = 'hertz'
+        weewx.units.MetricUnits['group_frequency'] = 'hertz'
+        weewx.units.MetricWXUnits['group_frequency'] = 'hertz'
+        weewx.units.USUnits['group_resistance'] = 'ohm'
+        weewx.units.MetricUnits['group_resistance'] = 'ohm'
+        weewx.units.MetricWXUnits['group_resistance'] = 'ohm'
+        
+        # set default formats and labels for frequency and resistance
+        weewx.units.default_unit_format_dict['hertz'] = '%.1f'
+        weewx.units.default_unit_label_dict['hertz'] = ' ohm'
+        weewx.units.default_unit_format_dict['ohm'] = '%.1f'
+        weewx.units.default_unit_label_dict['ohm'] = ' ohm'
+        
+        # define conversion functions for resistance
+        weewx.units.conversionDict['ohm'] = {'kohm': lambda x : x / 1000.0,
+                                             'Mohm': lambda x : x / 1000000.0}
+        weewx.units.conversionDict['kohm'] = {'ohm': lambda x : x * 1000.0,
+                                              'Mohm': lambda x : x / 1000.0}
+        weewx.units.conversionDict['Mohm'] = {'ohm': lambda x : x * 1000000.0,
+                                              'kohm': lambda x : x * 1000.0}
+        
+        # assign database fields to groups
+        weewx.units.obs_group_dict['string1Voltage'] = 'group_volt'
+        weewx.units.obs_group_dict['string1Current'] = 'group_amp'
+        weewx.units.obs_group_dict['string1Power'] = 'group_power'
+        weewx.units.obs_group_dict['string2Voltage'] = 'group_volt'
+        weewx.units.obs_group_dict['string2Current'] = 'group_amp'
+        weewx.units.obs_group_dict['string2Power'] = 'group_power'
+        weewx.units.obs_group_dict['gridVoltage'] = 'group_volt'
+        weewx.units.obs_group_dict['gridCurrent'] = 'group_amp'
+        weewx.units.obs_group_dict['gridPower'] = 'group_power'
+        weewx.units.obs_group_dict['gridFrequency'] = 'group_frequency'
+        weewx.units.obs_group_dict['efficiency'] = 'group_percent'
+        weewx.units.obs_group_dict['inverterTemp'] = 'group_temperature'
+        weewx.units.obs_group_dict['boosterTemp'] = 'group_temperature'
+        weewx.units.obs_group_dict['bulkVoltage'] = 'group_volt'
+        weewx.units.obs_group_dict['isoResistance'] = 'group_resistance'
+        weewx.units.obs_group_dict['in1Power'] = 'group_power'
+        weewx.units.obs_group_dict['in2Power'] = 'group_power'
+        weewx.units.obs_group_dict['bulkmidVoltage'] = 'group_volt'
+        weewx.units.obs_group_dict['bulkdcVoltage'] = 'group_volt'
+        weewx.units.obs_group_dict['leakdcCurrent'] = 'group_amp'
+        weewx.units.obs_group_dict['leakCurrent'] = 'group_amp'
+        weewx.units.obs_group_dict['griddcVoltage'] = 'group_volt'
+        weewx.units.obs_group_dict['gridavgVoltage'] = 'group_volt'
+        weewx.units.obs_group_dict['gridnVoltage'] = 'group_volt'
+        weewx.units.obs_group_dict['griddcFrequency'] = 'group_frequency'
+        weewx.units.obs_group_dict['energy'] = 'group_energy'
+
+1.  Save *extensions.py*.
+ 
 1.  Start weeWX:
 
         sudo /etc/init.d/weewx start
@@ -141,7 +205,7 @@ The weeWX log should be monitored to verify data is being read from the inverter
 
 ## Support ##
 
-General support issues may be raised in the Google Groups [weewx-user forum](https://groups.google.com/group/weewx-user "Google Groups weewx-user forum"). Specific bugs in the *Aurora* extension code should be the subject of a new issue raised via the [Issues Page](https://github.com/gjr80/weewx-aurora/issues "Aurora extension issues").
+General support issues may be raised in the Google Groups [weewx-user forum](https://groups.google.com/group/weewx-user "Google Groups weewx-user forum"). Specific bugs in the *Aurora* extension code should be the subject of a new issue raised via the *Aurora* extension [Issues Page](https://github.com/gjr80/weewx-aurora/issues "Aurora extension issues").
  
 ## Licensing ##
 
