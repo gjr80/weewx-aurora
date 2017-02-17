@@ -17,13 +17,30 @@
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see http://www.gnu.org/licenses/.
 #
-# Version: 0.2                                      Date: 7 February 2017
+# Version: 0.2.2                                    Date: 14 February 2017
 #
 # Revision History
+#  14 February 2017     v0.2.2  - fixed incorrect record fields used in
+#                                 PVOutputAPI.addbatchstatus()
+#                               - removed some early development code
+#                               - documented signatures for
+#                                 PVOutputAPI.request_with_retries(),
+#                                 PVOutputAPI._post_request() and
+#                                 PVOutputAPI.addbatchstatus()
+#                               - PVOutputAPI.addstatus() now correctly returns
+#                                 the PVOutput response
+#                               - added 'to do' list to comments
+#  13 February 2017     v0.2.1  - fixed issue where an uncaught socket.timeout
+#                                 exception would crash PVOutputThread
 #   7 February 2017     v0.2    - check to ensure that PVOutputThread has the
 #                                 minimum required fields to post a status to
-#                                 PVOutput.
+#                                 PVOutput
 #   17 December 2016    v0.1    - initial release
+#
+# To do
+#
+# - PVOutputAPI.addbatchstatus(). Any exceptions raised need to details all
+#   records that had errors, not just the first error encountered.
 #
 """Classes to interract with the PVOutput API.
 
@@ -229,7 +246,7 @@ class PVOutputThread(weewx.restx.RESTThread):
         else:
             # if we got here it is becase we have none of the required fields,
             # raise and AbortedPost exception and restx will skip posting
-            raise AbortedPost()
+            raise weewx.restx.AbortedPost()
 
         # convert to metric if necessary
         _metric_record = weewx.units.to_METRIC(_full_record)
@@ -261,7 +278,7 @@ class PVOutputThread(weewx.restx.RESTThread):
         _request = urllib2.Request(url=url)
         # if debug >= 2 then log some details of our request
         if weewx.debug >= 2:
-            syslog.syslog(syslog.LOG_DEBUG, "pvoutput: %s: url: %s payload: %s" % 
+            syslog.syslog(syslog.LOG_DEBUG, "pvoutput: %s: url: %s payload: %s" %
                               (self.protocol_name, url, urllib.urlencode(params)))
         # add our headers, in this case sid and api_key
         _request.add_header('X-Pvoutput-Apikey', self.api_key)
@@ -360,7 +377,7 @@ class PVOutputThread(weewx.restx.RESTThread):
                 # Provide method for derived classes to behave otherwise if
                 # necessary.
                 self.handle_code(_response.code, _count+1)
-            except (urllib2.URLError, httplib.BadStatusLine, httplib.IncompleteRead), e:
+            except (urllib2.URLError, socket.error, httplib.BadStatusLine, httplib.IncompleteRead), e:
                 # An exception was thrown. By default, log it and try again.
                 # Provide method for derived classes to behave otherwise if
                 # necessary.
@@ -534,8 +551,8 @@ class PVOutputAPI(object):
     def __init__(self, **kwargs):
         """"Initialiase the PVOutputAPI object."""
 
-        self.sid = kwargs.get('sid', read_sid())
-        self.api_key = kwargs.get('api_key', read_api_key())
+        self.sid = kwargs.get('sid')
+        self.api_key = kwargs.get('api_key')
         self.base_url = kwargs.get('base_url', 'http://pvoutput.org')
         self.max_tries = kwargs.get('max_tries', 3)
         self.retry_wait = kwargs.get('retry_wait', 2)
@@ -551,7 +568,17 @@ class PVOutputAPI(object):
             self.oldest_batch_date = 14
 
     def request_with_retries(self, service_script, data=None):
-        """Send a request to the PVOutput API retrying if required."""
+        """Send a request to the PVOutput API retrying if required.
+
+        Inputs:
+            service_script: Path and script name of a PVOutput service.
+                            Normally a value from the SERVICE_SCRIPT dict.
+            data:           The data payload to be sent with the request.
+
+        Returns:
+            The data in the file like object response to a urllib2.urlopen()
+            call.
+        """
 
         # get the url to be used
         url = self.base_url + service_script
@@ -594,7 +621,16 @@ class PVOutputAPI(object):
         return _response.read()
 
     def _post_request(self, request, payload=None):
-        """Post a request object."""
+        """Post a request object.
+
+        Inputs:
+            request: A class urllib2.Request object.
+            payload: A 'percent' encoded data string to be sent with the
+                     request.
+
+        Returns:
+            The file like object response from a urllib2.urlopen() call.
+        """
 
         try:
             # Python 2.5 and earlier does not have a 'timeout' parameter so be
@@ -606,60 +642,6 @@ class PVOutputAPI(object):
         except TypeError:
             # Python 2.5 compatible call
             _response = urllib2.urlopen(request, data=payload)
-        return _response
-
-    def request_with_retries_orig(self, service_script, data=None):
-        """Send a request to the PVOutput API retrying if required."""
-
-        # get the url to be used
-        url = self.base_url + service_script
-        # create a Request object
-        request = urllib2.Request(url=url, data=urllib.urlencode(data))
-        # add our headers, in this case sid and api_key
-        request.add_header('X-Pvoutput-Apikey', self.api_key)
-        request.add_header('X-Pvoutput-SystemId', self.sid)
-        # try to post the request up to max_tries times
-        for _count in range(self.max_tries):
-            # use a try..except to catch any errors
-            try:
-                # do the post and get the response
-                _response = self._post_request(request)
-                # check the response status code, PVOutput will return 200 if
-                # all was OK
-                _status_code = _response.getcode()
-                if _status_code == 200:
-                    # we have a good status so we are done
-                    if service_script == '/service/r2/addstatus.jsp':
-                        raise HTTPResponseError("%s returned a bad HTTP response code: %s" %
-                                                    (url, _status_code))
-                    break
-                else:
-                    # something went wrong, so raise it
-                    raise HTTPResponseError("%s returned a bad HTTP response code: %s" %
-                                                (url, _status_code))
-            except urllib2.URLError as e:
-                # If we have a reason for the error then we likely didn't get
-                # to the server. Log the error and continue.
-                if hasattr(e, 'reason'):
-                    print "Failed to reach a server. Reason: %s" % e.reason
-                # If we have a code we did get to the server but it returned an
-                # error. Log the error and continue.
-                if hasattr(e, 'code'):
-                    print "The server returned an error. Error code: %s" % e.code
-            time.sleep(self.retry_wait)
-        return _response.read()
-
-    def _post_request_orig(self, request):
-        """Post a request object."""
-
-        try:
-            # Python 2.5 and earlier does not have a 'timeout' parameter so be
-            # prepared to catch the exception and try a Pythoin 2.5 compatible
-            # call.
-            _response = urllib2.urlopen(request, timeout=self.timeout)
-        except TypeError:
-            # Python 2.5 compatible call
-            _response = urllib2.urlopen(request)
         return _response
 
     def getstatus(self, history=0, ascending=1, limit=288, extended=0,
@@ -734,7 +716,6 @@ class PVOutputAPI(object):
 
         Input:
             record:     A weewx archive record containing the data to be added.
-                        Dictionary.
             cumulative: Set if energey field passed is lifetime cumulative
                         (rather than daytime cumulative). Boolean, default
                         False.
@@ -786,8 +767,8 @@ class PVOutputAPI(object):
 
         # submit the request to the API and return the response
         try:
-            response = self.request_with_retries(self.SERVICE_SCRIPT['addstatus'],
-                                                 params)
+            return self.request_with_retries(self.SERVICE_SCRIPT['addstatus'],
+                                             params)
         except HTTPResponseError, e:
             # should be syslog
             print ("addstatus: Failed to upload status for %s:" %
@@ -795,12 +776,24 @@ class PVOutputAPI(object):
             print "addstatus:      %s" % e
 
     def addbatchstatus(self, records, cumulative=False):
-        """Add a batch status to the system."""
+        """Add a batch status to the system.
+
+        Input:
+            records:    A list of weeWX archive record containing the data to
+                        be added.
+            cumulative: Set if energey field passed is lifetime cumulative
+                        (rather than daytime cumulative). Boolean, default
+                        False.
+        Returns:
+            PVOutput API response code for addstatus request
+            eg 'OK 200: Added Status' if successful. returns None if addstatus
+            unsuccessful.
+        """
 
         # list of fields (excluding date and time) in order as required by
         # the API
-        ADDBATCHSTATUS_PARAMS = ['energy', 'powergen', 'energycons',
-                                 'powercons', 'temperature', 'voltage',
+        ADDBATCHSTATUS_PARAMS = ['energy', 'gridPower', 'energyCons',
+                                 'powerCons', 'inverterTemp', 'gridVoltage',
                                  'extended1', 'extended2', 'extended3',
                                  'extended4', 'extended5', 'extended6']
 
@@ -850,17 +843,17 @@ class PVOutputAPI(object):
         results = response.split(";")
         # did we get the same number of responses as records we sent?
         if len(results) != len(records):
-            raise PVUploadError("addbatchstatus: Unexpected number results.")
+            raise PVUploadError("addbatchstatus: Unexpected number of results.")
         # Now go through each records result and check for success. If a record
-        # failed to upload then log raise it.
+        # failed to upload then log it and at the end raise it.
         for _result in results:
             # split an individual records result into its component fields
             _date, _time, _status = _result.split(",")
             # if we failed to upload the records sucessfully
             if _status != "1":
                 # get a timestamp of the record
-                datetime_dt = datetime.datetime.strptime("%Y%m%d %H;%M",
-                                                         " ".join(_date, _time))
+                datetime_dt = datetime.datetime.strptime(" ".join(_date, _time),
+                                                         "%Y%m%d %H;%M")
                 datetime_ts = time.mktime(datetime_dt.timetuple())
                 # raise the error
                 raise PVUploadError("addbatchstatus: Failed to upload status for %s" %
