@@ -17,9 +17,10 @@
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see http://www.gnu.org/licenses/.
 #
-# Version: 0.2.2                                    Date: 14 February 2017
+# Version: 0.2.3                                    Date: 24 February 2017
 #
 # Revision History
+#  24 February 2017     v0.2.3  - added missing socket import
 #  14 February 2017     v0.2.2  - fixed incorrect record fields used in
 #                                 PVOutputAPI.addbatchstatus()
 #                               - removed some early development code
@@ -54,6 +55,7 @@ data on PVOutput.org via the PVOutput API.
 import datetime
 import httplib
 import Queue
+import socket
 import sys
 import syslog
 import time
