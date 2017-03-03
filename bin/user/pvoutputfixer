@@ -21,27 +21,46 @@
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see http://www.gnu.org/licenses/.
 #
-# Version: 0.2                                      Date: 14 February 2017
+# Version: 0.2.1                                    Date: 4 March 2017
 #
 # Revision History
-#   14 February 2017    v0.2    -
+#   4 March 2017        v0.2.1  - reworked getArchiveDayTimeStamps() so that it
+#                                 ignores records where energy is NULL
+#                                 (ie overnight records)
+#                               - removed unused imports
+#                               - added code to support pvoutputfixer being run
+#                                 from /bin/user
+#                               - fixed a few errors and reformatted the usage
+#                                 string
+#                               - reworked/added a lot of comments
+#   14 February 2017    v0.2    - reworked code that compares archive to
+#                                 PVOutput and posts the difference.
 #   11 December 2016    v0.1    - initial release
 #
-"""This utility goes through all records in a weeWX archive for a given day,
-comparing to see whether a corresponding record exists on PVOutput. If not, it
-will publish a new record on PVOutput with the missing data.
+"""This utility compares all records in a weeWX archive for a given day to
+those on PVOutput for a given system ID for the same day. Any records that
+exist in the archive but not on PVOutput are published to PVOutput.
 """
 
-import csv
 import datetime
 import optparse
-import re
+import os.path
 import socket
 import sys
 import syslog
 import time
 import urllib2
 
+# Find the install bin subdirectory:
+# I am in bin/user so get my directory
+this_file = os.path.join(os.getcwd(), __file__)
+this_dir = os.path.abspath(os.path.dirname(this_file))
+# bin must be the next level up
+(bin_dir, _tail) = os.path.split(this_dir)
+# Now that we've found the bin subdirectory, inject it into the path:
+sys.path.insert(0, bin_dir)
+
+# Now we can import some weewx modules
 import weecfg
 import weeutil
 import weewx.manager
@@ -52,17 +71,17 @@ from weeutil.weeutil import timestamp_to_string
 usagestr = """%prog CONFIG_FILE|--config=CONFIG_FILE
                   [--binding=BINDING_NAME]
                   [--system=SYSTEM_ID] [--apikey=API_KEY]
-                  [--datetime=TIMESTAMP]
+                  [--date=YYYY-mm-dd] [--epsilon=SECONDS]
                   [--verbose] [--log LOG_FACILITY] [--test] [--query]
                   [--help]
 
-This utility fills in missing status data on PVOutput. It goes through all
-records in a weeWX archive for a given day, comparing to see whether a
-corresponding record exists on PVOutput. If not, it will publish a new record
-on PVOutput with the missing data.
+This utility finds and publishes missing status data on PVOutput. All records
+in a weeWX archive for a given day are checked against the PVOutput data for a
+given station ID for the same day. Any missing PVOutput records that exist in
+the archive are published to PVOutput.
 """
 
-__version__ = "0.2"
+__version__ = "0.2.1"
 
 # PVOutput manifest. Map of weeWX field to PVOutput addstatus/addbatchstatus
 # field.
@@ -82,13 +101,14 @@ manifest = {'energy': 'v1',
 # non-None fields required to post a batch status
 batch_required = ['energy']
 
-# The number of seconds difference in the timestamp between two records
-# and still have them considered to be the same:
+# the number of seconds difference in the timestamp between two records and
+# still have them considered to be the same
 epsilon = None
 
-# Instance of our logger
+# instance of our logger
 wlog = None
 
+#### is this needed?
 socket.setdefaulttimeout(10.0)
 
 def main() :
@@ -104,9 +124,11 @@ def main() :
                       help="The database binding to be used. Default is"
                       " 'aurora_binding'.")
     parser.add_option("-s", "--system", type="string", dest="system_id",
+                      metavar="SYSTEM_ID",
                       help="PVOutput system ID. Optional."
                       " Default is taken from the configuration file.")
     parser.add_option("-a", "--apikey", type="string", dest="api_key",
+                      metavar="API_KEY",
                       help="PVOutput system API key. Optional. "
                       "Default is taken from the configuration file.")
     parser.add_option("-d", "--date", type="string", dest="date",
@@ -133,7 +155,7 @@ def main() :
 
     (options, args) = parser.parse_args()
 
-    # Set up our syslog
+    # set up our syslog
     wlog = PVOutputLog(options.logging, options.verbose)
 
     # get our config file
@@ -142,7 +164,7 @@ def main() :
     print >>sys.stdout, _msg
     wlog.slog(syslog.LOG_INFO, _msg)
 
-    # Retrieve the system ID and api key from the config file
+    # if required retrieve the system ID and api key from the config file
     try:
         if not options.system_id:
             options.system_id = config_dict['StdRESTful']['PVOutput']['system_id']
@@ -169,24 +191,29 @@ def main() :
     print >>sys.stdout, _msg
     wlog.slog(syslog.LOG_INFO, _msg)
 
-    # get the manager object for our db_binding
-    dbmanager_t = weewx.manager.open_manager_with_config(config_dict, db_binding)
+    # get a manager object for our db_binding
+    dbmanager_t = weewx.manager.open_manager_with_config(config_dict,
+                                                         db_binding)
 
+    # if we are simulating then query is 'no'
     _ans = 'y'
     if options.simulate:
         options.query = False
         _ans = 'n'
 
+    # if we are querying each change then force verbose
     if options.query:
         options.verbose = True;
 
+    # set the date to be used, default to today's date
     if options.date:
         date_tt = time.strptime(options.date, "%Y-%m-%d")
         date_date = datetime.date(date_tt[0], date_tt[1], date_tt[2])
     else:
-        # If no date option was specified on the command line, use today's date:
+        # if no date option was specified on the command line use today's date
         date_date = datetime.date.today()
 
+    # set epsilon
     epsilon = options.epsilon
 
     if options.verbose:
@@ -197,13 +224,13 @@ def main() :
                                                                       date_date.strftime('%Y-%m-%d')))
 
 
-    # Get all the time stamps in the archive for the given day:
+    # get all the time stamps in the archive for the given day
     archive_results = getArchiveDayTimeStamps(dbmanager_t, date_date)
     if options.verbose:
         print >>sys.stdout, "Number of archive records found for %s: %d" % (date_date.strftime('%Y-%m-%d'),
                                                                             len(archive_results))
 
-    # Get a PVOutputAPI object so we can interact with PVOutput
+    # get a PVOutputAPI object so we can interact with PVOutput
     pvoutput = user.pvoutput.PVOutputAPI(sid=options.system_id,
                                          api_key=options.api_key,
                                          server_url=user.pvoutput.StdPVOutput.api_url,
@@ -213,9 +240,9 @@ def main() :
                                          timeout = 5,
                                          softwaretype = "pvoutputfixer-%s" % __version__)
 
-    # The max size of a batch status update and the max age of statuses that
-    # can be uploaded depends on whether the station has donor status. Query
-    # PVOutput to get these limits for the station.
+    # The max size of a PVOutput batch status update and the max age of
+    # statuses that can be uploaded depends on whether the station has donor
+    # status. Query PVOutput to get these limits for the station.
     system = pvoutput.getsystem(donations=1)
     if system[0]['donations'] == '1':
         max_batch_size = 100
@@ -224,22 +251,34 @@ def main() :
         max_batch_size = 30
         max_age = 14
     if options.verbose:
-        print >>sys.stdout, "Status' will be posted in batches of %d" % max_batch_size
-        print >>sys.stdout, "Status' older than %d days will be ignored" % max_age
+        print >>sys.stdout, "Status data will be posted in batches of %d" % max_batch_size
+        print >>sys.stdout, "Status data older than %d days will be ignored" % max_age
 
-    _api_date_str = date_date.strftime('%Y%m%d')
+    # get the PVOutput record data for the date concerned
     _response = pvoutput.getstatus(history=1,
                                    date=date_date.strftime('%Y%m%d'))
+    # initialise the list of existing PVOutput records timestamps
     pv_results = []
+    # did we get any data from PVOutput
     if _response and len(_response) > 0:
+        # we at least one record from PVOutput, step through the records,
+        # construct a timestamp for the record and add the timestamp to our
+        # list
         for _entry in _response:
+            # PVOutput provides separate date and time fields, we need to join
+            # them to provide a formatted string we can interpret
             _datetime = ''.join([_entry['date'], ' ', _entry['time']])
+            # interpret the formatted date-time string and convert to an epoch
+            # timestamp, enclose in a try..except in case the date-time string
+            # is malformed
             try:
                 _dt = datetime.datetime.strptime(_datetime, '%Y%m%d %H:%M')
                 _ts = time.mktime(_dt.timetuple())
+                # append the timestamp to our list as a TimeStamp object
                 pv_results.append(TimeStamp(_ts))
             except ValueError:
                 pass
+    # get a list of missing timestamps sorted in timestamp order
     missing_records = sorted([x for x in archive_results if not x in pv_results])
     _msg = "%d missing status records identified" % len(missing_records)
     print >>sys.stdout, _msg
@@ -247,15 +286,17 @@ def main() :
 
     no_published = 0
     recs = []
-    # Loop through the missing timestamps and generate a list of records to be
+    # loop through the missing timestamps and generate a list of records to be
     # posted
     for time_TS in missing_records:
         # get the actual timestamp from the TimeStamp object
         ts = time_TS.ts
         # get the archive record for this timestamp
         record = dbmanager_t.getRecord(ts)
+
         # now get the subset of fields from record that may be posted to
         # PVOutput
+
         # initialise the subset with the timestamp of the record
         _rec = {}
         _rec['dateTime'] = record['dateTime']
@@ -268,8 +309,11 @@ def main() :
         # we have any data in the required fields for this record and finally
         # is the record age within the max age PVOutput allows for status
         # uploads.
+
         # initialise a flag indicating if this record has data to post
         data_to_post = False
+
+        # check our age
         _diff_dt = datetime.datetime.now() - datetime.timedelta(days=max_age)
         if datetime.datetime.fromtimestamp(_rec['dateTime']) > _diff_dt:
             # the record is not too old so check for data
@@ -279,7 +323,8 @@ def main() :
                     # Set our flag and break.
                     data_to_post = True
                     break
-        # if this record has no data to post then move onto the next record
+
+        # check for data to post
         if not data_to_post:
             continue
 
@@ -287,11 +332,11 @@ def main() :
         # to post it
         if options.query:
             _ans=raw_input("...fix? (y/n/a/q):")
-            if _ans == "q" :
+            if _ans == "q":
                 print >>sys.stdout, "Quitting."
                 wlog.slog(syslog.LOG_DEBUG, "... exiting")
                 exit()
-            if _ans == "a" :
+            if _ans == "a":
                 _ans = "y"
                 options.query=False
 
@@ -309,10 +354,15 @@ def main() :
     # depends on whether we are a PVOutput donor.
     tranche = []
     no_posted = 0
+    # loop through our records to post
     for rec in recs:
+        # add the record to the current tranche
         tranche.append(rec)
+        # if we have reached our max tranche size then post the tranche and
+        # reset the tranche for the next tranche of records
         if len(tranche) >= max_batch_size:
             if not options.simulate:
+                # post the tranche
                 _response = pvoutput.addbatchstatus(tranche)
                 for _t in tranche:
                     print >>sys.stdout, print_record(_t), "... uploaded."
@@ -321,14 +371,18 @@ def main() :
                 no_posted += len(tranche)
             tranche = []
             continue
+    # we have processed all of our records but do we have any left in the last
+    # tranche that have not been posted
     if len(tranche) > 0:
         if not options.simulate:
+            # post the tranche
             _response = pvoutput.addbatchstatus(tranche)
             for _t in tranche:
                 print >>sys.stdout, print_record(_t), "... uploaded."
             no_posted += len(_response.split(";"))
         else:
             no_posted += len(tranche)
+    # give the user some summary info about what we did
     _msg = "%d out of %d missing status records published to system ID '%s'" % (no_posted,
                                                                                 len(missing_records),
                                                                                 options.system_id)
@@ -345,8 +399,13 @@ def main() :
 
 
 class TimeStamp(object):
-    """This class represents a timestamp. It uses a 'fuzzy' compare.
-    That is, if the times are within epsilon seconds of each other, they compare true."""
+    """Class to support fuzzy compare of timestamps.
+
+    The same record on two or more different systems may end up with a slightly
+    different timestamp on each system. This class represents a timestamp and
+    it allows a 'fuzzy' compare. That is, if the timestamps are within epsilon
+    seconds of each other, they compare true.
+    """
 
     def __init__(self, ts):
         self.ts = ts
@@ -397,13 +456,16 @@ class PVOutputLog(object):
 
         # are we logging ?
         if self.log:
-            # if logging to 'weewx' then add a little preamble to say this is wunderfixer
+            # if logging to 'weewx' then add a little preamble to say this is
+            # pvoutputfixer
             _message = message if self.log_facy != 'weewx' else 'pvoutputfixer: ' + message
             syslog.syslog(level, _message)
+
 
 # ============================================================================
 #                             Utility functions
 # ============================================================================
+
 
 # The formats to be used to print the record. For each type, there are two
 # formats, the first to be used for a valid value, the second for value
@@ -414,44 +476,67 @@ _formats = (('energy'      , ('%4.0fWh', 'N/A Wh')),
             ('inverterTemp', ('%6.1fC',  '  N/A C')))
 
 def print_record(record):
-    # Start with a formatted version of the time:
+    """Create a formatted string representation of a record for printing.
+
+    Input:
+        record: a weeWX record containing the data to print
+
+    Returns:
+        A formatted string representing the date and time of the record as well
+        as selected fields.
+    """
+
+    # start with a formatted version of the time:
     _strlist = [timestamp_to_string(record['dateTime'])]
 
-    # Now add the other types, in the order given by _formats:
+    # now add the other types, in the order given by _formats:
     for (_type, _format) in _formats:
         _val = record.get(_type)
         _strlist.append(_format[0] % _val if _val is not None else _format[1])
-    # _strlist is a list of strings. Convert it into one long string:
+    # _strlist is a list of strings. Convert it into one long string.
     _string_result = ';'.join(_strlist)
     return _string_result
 
 def getArchiveDayTimeStamps(dbmanager, dayRequested):
-    """Returns all time stamps in a weeWX archive for a given day
+    """Get the timestamp of all archive records with PV data for a given day.
 
-    dayRequested: An instance of datetime.date
+    PVOutput will accept energy, gridPower, gridVoltage and inverterTemp data.
+    Of these fields, energy is mandatory and the others are optional. Since the
+    inverter sleeps at night and None is written to all PV data fields the list
+    of available records is limited to those where energy is not None.
 
-    returns: A list containing instances of TimeStamps
+    Inputs:
+        dbmanager:    a database manager object for the archive to be used
+        dayRequested: an instance of datetime.date
+
+    Returns:
+        A list of TimeStamp objects containing the timestamps of all archive
+        records for the day where energy is not None.
     """
 
-    # Get the ordinal number for today and tomorrow
+    # get the ordinal number for today and tomorrow
     start_ord = dayRequested.toordinal()
     end_ord   = start_ord + 1
 
-    # Convert them to instances of datetime.date
+    # convert them to instances of datetime.date
     start_date = datetime.date.fromordinal(start_ord)
     end_date   = datetime.date.fromordinal(end_ord)
 
-    # Finally, convert those to epoch time stamps.
-    # The result will be two timestamps for the two midnights
-    # E.G., 2009-10-25 00:00:00 and 2009-10-26 00:00:00
+    # Finally, convert those to epoch timestamps. The result will be two
+    # timestamps for the two midnights:
+    # eg. 2009-10-25 00:00:00 and 2009-10-26 00:00:00
     start_ts = time.mktime(start_date.timetuple())
     end_ts   = time.mktime(end_date.timetuple())
 
-    _gen_rows =  dbmanager.genSql("""SELECT dateTime FROM archive WHERE dateTime>=? AND dateTime<?""",
-                                  (start_ts, end_ts))
-    timeStamps = [TimeStamp(_row[0]) for _row in _gen_rows]
+    # our query string, select all records withing the start and end timestamps
+    # where the energy field is not NULL (None)
+    _sql = "SELECT dateTime FROM archive "\
+               "WHERE dateTime>=? AND dateTime<? AND energy IS NOT NULL"
+    _gen_rows =  dbmanager.genSql(_sql, (start_ts, end_ts))
+    # return the results as a list of TimeStamp objects
+    timestamps = [TimeStamp(_row[0]) for _row in _gen_rows]
 
-    return timeStamps
+    return timestamps
 
 # ============================================================================
 #                           Call main program body
