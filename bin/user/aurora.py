@@ -20,8 +20,21 @@
 # Version: 0.4                                      Date: 9 February 2017
 #
 # Revision History
+#   xx March 2017       v0.5    - implemented port cycling to reset serial port
+#                                 after occasional CRC error
+#                               - fixed issue where inverter date-time was
+#                                 never added to the raw loop packet so could
+#                                 never be used as the resulting loop packet
+#                                 timestamp
+#                               - added confeditor_loader() function
+#                               - revised logging output format to be more
+#                                 consistent
+#                               - added more arguments to AuroraInverter class
+#                               - AuroraDriver send_cmd_with_crc() method now
+#                                 accepts additional arguments
+#                               - refactored calculate_energy()
 #   9 February 2017     v0.4    - implemented setTime() method
-#   7 February 2017     v0.3    - hex inverter respone streams now printed as
+#   7 February 2017     v0.3    - hex inverter response streams now printed as
 #                                 space separated bytes
 #                               - fixed various typos
 #                               - some test screen error output now syslog'ed
@@ -30,7 +43,7 @@
 #                               - converted a number of class properties that
 #                                 were set on __init__ to @property that are
 #                                 queried when required
-#                               - inverter state request reponse now decoded
+#                               - inverter state request response now decoded
 #                               - added --monitor action to __main__
 #                               - improved delay loop in genLoopPackets()
 #                               - added usage instructions
@@ -133,7 +146,7 @@ To use:
 4   Edit weewx.conf as follows:
 
     - under [Station] set station_type = Aurora
-    - unless requried for any other purpose, disable any report under
+    - unless required for any other purpose, disable any report under
       [StdReport]
     - under [DataBindings] create a new binding for the Aurora data
     - under [StdArchive] set record_generation = software
@@ -259,6 +272,9 @@ def logerr(msg):
 
 def loader(config_dict, engine):  # @UnusedVariable
     return AuroraDriver(config_dict[DRIVER_NAME])
+
+def confeditor_loader():
+    return AuroraConfEditor()
 
 
 # ============================================================================
@@ -503,24 +519,44 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
     def __init__(self, aurora_dict):
         """Initialise an object of type AuroroaDriver."""
 
+        # model
         self.model = aurora_dict.get('model', 'Aurora')
-        logdbg('AuroraDriver: %s driver version is %s' % (self.model, DRIVER_VERSION))
-        self.port = aurora_dict.get('port', '/dev/ttyUSB0')
-        self.max_tries = int(aurora_dict.get('max_tries', 3))
+        logdbg('%s driver version is %s' % (self.model, DRIVER_VERSION))
+        # serial comms options
+        try:
+            port = aurora_dict.get('port', '/dev/ttyUSB0')
+        except KeyError:
+            raise Exception("Required parameter 'port' was not specified.")
+        baudrate = int(aurora_dict.get('baudrate', 19200))
+        timeout = float(aurora_dict.get('timeout', 2.0))
+        wait_before_retry = float(aurora_dict.get('wait_before_retry', 1.0))
+        command_delay = float(aurora_dict.get('command_delay', 0.05))
+        logdbg('   using port %s baudrate %d timeout %s' % (port,
+                                                                       baudrate,
+                                                                       timeout))
+        logdbg('   wait_before_retry %s command_delay %s' % (wait_before_retry,
+                                                                        command_delay))
+        # driver options
+        self.max_command_tries = int(aurora_dict.get('max_command_tries', 3))
         self.polling_interval = int(aurora_dict.get('loop_interval', 10))
-        logdbg('AuroraDriver: Inverter will be polled on port %s every %d seconds' %
-                   (self.port, self.polling_interval))
         self.address = int(aurora_dict.get('address', 2))
-        logdbg('AuroraDriver: Inverter address is %d' % self.address)
-        self.use_inverter_time = to_bool(aurora_dict.get('use_inverter_time',
-                                                         False))
+        self.max_loop_tries = int(aurora_dict.get('max_loop_tries', 3))
+        logdbg('   inverter address %d will be polled every %d seconds' %
+                   (self.address, self.polling_interval))
+        logdbg('   max_command_tries %d max_loop_tries %d' %
+                   (self.max_command_tries, self.max_loop_tries))
+        self.use_inverter_time = to_bool(aurora_dict.get('use_inverter_time', False))
         if self.use_inverter_time:
-            logdbg('AuroraDriver: Inverter time will be used to timestamp data')
+            logdbg('   inverter time will be used to timestamp data')
         else:
-            logdbg('AuroraDriver: WeeWX system time will be used to timestamp data')
+            logdbg('   weeWX system time will be used to timestamp data')
 
         # get an AuroraInverter object
-        self.inverter = AuroraInverter(self.port)
+        self.inverter = AuroraInverter(port,
+                                       baudrate=baudrate,
+                                       timeout=timeout,
+                                       wait_before_retry=wait_before_retry,
+                                       command_delay=command_delay)
         # open up the connection to the inverter
         self.openPort()
 
@@ -533,7 +569,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         # Build the manifest of readings to be included in the loop packet.
         # Build the Aurora reading to loop packet field map.
         (self.field_map, self.manifest) = self._build_map_manifest(aurora_dict)
-
+        loginf('self.field_map=%s' % (self.field_map,))
         # build a 'none' packet to use when the inverter is offline
         self.none_packet = {}
         for src in self.manifest:
@@ -558,7 +594,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
 
         while int(time.time()) % self.polling_interval != 0:
             time.sleep(0.2)
-        for count in range(self.max_tries):
+        for count in range(self.max_loop_tries):
             while True:
                 try:
                     # get the current time as timestamp
@@ -578,22 +614,30 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                     # process raw data and return a dict that can be used as a
                     # LOOP packet
                     packet = self.process_raw_packet(raw_packet)
-                    # add in special fields
+                    # add in/set fields that require special consideration
                     if packet:
-                        # dateTime
+
+                        # dateTime - either be system time or inverter time
                         if not self.use_inverter_time:
+                            # we are NOT using the inverter timestamp so set
+                            # the packet timestamp to the current system time
                             packet['dateTime'] = _ts
                         else:
+                            # we ARE using the inverter timestamp so set the
+                            # packet timestamp to the current inverter time
                             packet['dateTime'] = packet['timeDate']
-                        # usUnits
+
+                        # usUnits - set to METRIC
                         packet['usUnits'] = weewx.METRIC
-                        # energy
+
+                        # energy - derive from dayEnergy
                         # dayEnergy is cumulative by day but we need
                         # incremental values so we need to calculate it based
                         # on the last cumulative value
                         packet['energy'] = self.calculate_energy(packet['dayEnergy'],
                                                                  self.last_energy)
                         self.last_energy = packet['dayEnergy'] if 'dayEnergy' in packet else None
+
                         logdbg2("genLoopPackets: received loop packet: %s" %
                                     packet)
                         yield packet
@@ -602,10 +646,9 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                     while time.time() < _ts + self.polling_interval:
                         time.sleep(0.2)
                 except IOError, e:
-                    logerr("genLoopPackets: LOOP try #%d; error: %s" %
-                               (count + 1, e))
+                    logerr("LOOP try #%d; error: %s" % (count + 1, e))
                     break
-        logerr("genLoopPackets: LOOP max tries (%d) exceeded." % self.max_tries)
+        logerr("LOOP max tries (%d) exceeded." % self.max_loop_tries)
         raise weewx.RetriesExceeded("Max tries exceeded while getting LOOP data.")
 
     def get_raw_packet(self):
@@ -616,9 +659,9 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         for reading in self.manifest:
             # get the reading
             _response = self.do_cmd(reading)
-            # If the inverter is running the set the running property and save
-            # the data. If the inverter is asleep set the running property
-            # only, there will be no data.
+            # If the inverter is running set the running property and save the
+            # data. If the inverter is asleep set the running property only,
+            # there will be no data.
             if _response.global_state == 6:
                 # inverter is running
                 self.running = True
@@ -633,7 +676,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         """Create a limited weeWX loop packet from a raw loop data.
 
         Input:
-            raw_packet: A dict holding unmapped raw data retireved from the
+            raw_packet: A dict holding unmapped raw data retrieved from the
                         inverter.
 
         Returns:
@@ -674,7 +717,9 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         try:
             return self.inverter.send_cmd_with_crc(command,
                                                    payload=payload,
-                                                   globall=globall)
+                                                   globall=globall,
+                                                   address=self.address,
+                                                   max_tries=self.max_command_tries)
         except weewx.WeeWxIOError:
             return ResponseTuple(None, None, None)
 
@@ -696,7 +741,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         # get the ts
         _time_ts = self.do_cmd('getTimeDate').data
         if _time_ts is None:
-            # if it's None the inverter is asleep (or otherwise unavalable) so
+            # if it's None the inverter is asleep (or otherwise unavailable) so
             # raise a NotImplementedError
             raise NotImplementedError("Method 'getTime' not implemented")
         else:
@@ -741,15 +786,15 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
             # where we can check the transmission state and global state.
             if _response.transmission_state == 0 and _response.global_state == 6:
                 # good response so log it
-                loginf("setTime: Inverter time set")
+                loginf("Inverter time set")
             else:
                 # something went wrong, it's not fatal but we need to log the
                 # failure and the returned states
-                logerr("setTime: Inverter time was not set")
-                logerr("setTime:   ***** transmission state=%d (%s)" %
+                logerr("Inverter time was not set")
+                logerr("  ***** transmission state=%d (%s)" %
                            (_response.transmission_state,
                             TRANSMISSION[response_rt.transmission_state]))
-                logerr("setTime:   ***** global state=%d (%s)" %
+                logerr("  ***** global state=%d (%s)" %
                            (_response.global_state,
                             GLOBAL[response_rt.global_state]))
 
@@ -846,13 +891,10 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
     def calculate_energy(newtotal, oldtotal):
         """Calculate energy differential given two cumulative measurements."""
 
+        delta = None
         if newtotal is not None and oldtotal is not None:
             if newtotal >= oldtotal:
                 delta = newtotal - oldtotal
-            else:
-                delta = None
-        else:
-            delta = None
         return delta
 
     def _build_map_manifest(self, inverter_dict):
@@ -895,6 +937,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
 class AuroraInverter(object):
     """Class to support serial comms with an Aurora PVI-6000 inverter."""
 
+    DEFAULT_PORT = '/dev/ttyUSB0'
 
     def __init__(self, port, baudrate=19200, timeout=2.0,
                  wait_before_retry=1.0, command_delay=0.05):
@@ -956,10 +999,9 @@ class AuroraInverter(object):
 
         self.serial_port = serial.Serial(port=self.port, baudrate=self.baudrate,
                                          timeout=self.timeout)
-        logdbg("AuroraInverter: Opened serial port %s; baud %d; timeout %.2f"
-                   % (self.port,
-                      self.baudrate,
-                      self.timeout))
+        logdbg("Opened serial port %s; baud %d; timeout %.2f" % (self.port,
+                                                                 self.baudrate,
+                                                                 self.timeout))
 
     def close_port(self):
         """Close a serial port."""
@@ -985,9 +1027,9 @@ class AuroraInverter(object):
         try:
             N = self.serial_port.write(data)
         except serial.serialutil.SerialException, e:
-            logerr("AuroraInverter: SerialException on write.")
-            logerr("                  ***** %s" % e)
-            # reraise as a weeWX error I/O error:
+            logerr("SerialException on write.")
+            logerr("  ***** %s" % e)
+            # re-raise as a weeWX error I/O error:
             raise weewx.WeeWxIOError(e)
         # Python version 2.5 and earlier returns 'None', so it cannot be used
         # to test for completion.
@@ -1012,11 +1054,11 @@ class AuroraInverter(object):
         try:
             _buffer = self.serial_port.read(bytes)
         except serial.serialutil.SerialException, e:
-            logerr("AuroraInverter: SerialException on read.")
-            logerr("                  ***** %s" % e)
-            logerr("                  ***** Is there a competing process running??")
+            logerr("SerialException on read.")
+            logerr("  ***** %s" % e)
+            logerr("  ***** Is there a competing process running??")
             raise
-            # reraise as a weeWX error I/O error:
+            # re-raise as a weeWX error I/O error:
             raise weewx.WeeWxIOError(e)
         N = len(_buffer)
         if N != bytes:
@@ -1062,7 +1104,7 @@ class AuroraInverter(object):
         _data_with_crc = _b_padded + self.word2struct(self.crc16(_b_padded))
         # now send the assembled command retrying up to max_tries times
         for count in xrange(max_tries):
-            logdbg2("sent %s" % format_byte_to_hex(_data_with_crc))
+            logdbg2("send_cmd_with_crc: sent %s" % format_byte_to_hex(_data_with_crc))
             try:
                 self.write(_data_with_crc)
                 # wait before reading
@@ -1073,9 +1115,33 @@ class AuroraInverter(object):
                     return self.commands[command]['fn'](_resp)
                 else:
                     return _resp
+            except weewx.CRCError:
+                # We seem to get occasional CRC errors, once they start they
+                # continue indefinitely. Closing then opening the serial port
+                # seems to reset the error and allow proper communication to
+                # continue (until the next one). So if we get a CRC error then
+                # cycle the port and continue.
+
+                if count + 1 < max_tries:
+                    # log that we are about to cycle the port
+                    loginf("CRC error on try #%d. Cycling port." % (count + 1,))
+                    # close the port, wait 0.2 sec then open the port
+                    self.close_port()
+                    time.sleep(0.2)
+                    self.open_port()
+                    # log that the port has been cycled
+                    loginf("Port cycle complete.")
+                else:
+                    loginf("CRC error on try #%d." % (count + 1,))
+                continue
             except weewx.WeeWxIOError:
                 pass
-            logdbg2("send_cmd_with_crc: try #%d" % (count + 1,))
+            if count + 1 < max_tries:
+                logdbg2("send_cmd_with_crc: try #%d unsuccessful... sleeping" % (count + 1,))
+                time.sleep(self.wait_before_retry)
+                logdbg2("send_cmd_with_crc: retrying")
+            else:
+                logdbg2("send_cmd_with_crc: try #%d unsuccessful" % (count + 1,))
         logdbg("Unable to send or receive data to/from the inverter")
         raise weewx.WeeWxIOError("Unable to send or receive data to/from the inverter")
 
@@ -1159,9 +1225,9 @@ class AuroraInverter(object):
         if crc == crc_bytes:
             return data
         else:
-            logerr("AuroraInverter: Inverter response failed CRC check:")
-            logerr("                  ***** response=%s" % (format_byte_to_hex(buffer)))
-            logerr("                  *****     data=%s        CRC=%s  expected CRC=%s" %
+            logerr("Inverter response failed CRC check:")
+            logerr("  ***** response=%s" % (format_byte_to_hex(buffer)))
+            logerr("  *****     data=%s        CRC=%s  expected CRC=%s" %
                        (format_byte_to_hex(data),
                        format_byte_to_hex(crc_bytes),
                        format_byte_to_hex(crc)))
@@ -1472,6 +1538,58 @@ class AuroraInverter(object):
 
 
 # ============================================================================
+#                          Class AuroraConfEditor
+# ============================================================================
+
+
+class AuroraConfEditor(weewx.drivers.AbstractConfEditor):
+
+    @property
+    def default_stanza(self):
+        return """
+[Aurora]
+    # This section is for the Power One Aurora series of inverters.
+
+    # The inverter model, e.g., Aurora PVI-6000, Aurora PVI-5000
+    model = Aurora PVI-6000
+
+    # Serial port such as /dev/ttyS0, /dev/ttyUSB0, or /dev/cua0
+    port = %s
+
+    # The driver to use:
+    driver = user.aurora
+
+    # Mapping of inverter readings to aurora archive schema fields. Format is:
+    #
+    #   aurora archive schema field name = aurora reading name
+    #
+    # On startup the AuroraDriver derives the aurora readings to use to
+    # construct the AuroraDriver loop packets from the aurora readings included
+    # in the [[FieldMap]]. All aurora readings included in the [[FieldMap]]
+    # must be a key from the user.aurora.AuroraInverter.commands dict.
+    #[[FieldMap]]
+%s
+""" % (AuroraInverter.DEFAULT_PORT,
+       "\n".join(["    #   %s = %s" % (x, AuroraDriver.DEFAULT_MAP[x]) for x in AuroraDriver.DEFAULT_MAP]))
+
+    def prompt_for_settings(self):
+
+        print "Specify the inverter model, for example: Aurora PVI-6000 or Aurora PVI-6000"
+        model = self._prompt('model', 'Aurora PVI-6000')
+        print "Specify the serial port on which the inverter is connected, for"
+        print "example: /dev/ttyUSB0 or /dev/ttyS0 or /dev/cua0."
+        port = self._prompt('port', AuroraInverter.DEFAULT_PORT)
+        return {'model': model,
+                'port': port}
+
+    def modify_config(self, config_dict):
+
+        print """
+Setting record_generation to software."""
+        config_dict['StdArchive']['record_generation'] = 'software'
+
+
+# ============================================================================
 #                             Utility functions
 # ============================================================================
 
@@ -1550,7 +1668,7 @@ class ResponseTuple(tuple):
 #
 # where option is one of the following options:
 #   --help          - display driver command line help
-#   --version       - diplay driver version
+#   --version       - display driver version
 #   --gen-packets   - generate LOOP packets indefinitely
 #   --get-status    - display inverter status
 #   --get-readings  - display current inverter readings
