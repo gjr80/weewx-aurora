@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see http://www.gnu.org/licenses/.
 #
-# Version: 0.4                                      Date: 9 February 2017
+# Version: 0.5                                      Date: xx March 2017
 #
 # Revision History
 #   xx March 2017       v0.5    - implemented port cycling to reset serial port
