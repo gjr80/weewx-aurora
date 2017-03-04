@@ -108,6 +108,7 @@ To use:
     # in the [[FieldMap]]. All aurora readings included in the [[FieldMap]]
     # must be a key from the user.aurora.AuroraInverter.commands dict.
     [[FieldMap]]
+        timeDate = getTimeDate
         string1Voltage = getStr1V
         string1Current = getStr1C
         string1Power = getStr1P
@@ -221,7 +222,8 @@ weewx.units.obs_group_dict['energy'] = 'group_energy'
 
 Standalone testing
 
-This driver can be run in standalone mode without the overheads of the weeWX engine and services. The available options can be displayed using:
+This driver can be run in standalone mode without the overheads of the weeWX 
+engine and services. The available options can be displayed using:
 
     $ PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/aurora.py --help
 
