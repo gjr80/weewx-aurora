@@ -1,6 +1,6 @@
 # aurora_driver.py
 #
-# A weeWX driver for the Power One Aurora PVI-6000 inverter.
+# A weeWX driver for Power One Aurora inverters.
 #
 # Copyright (C) 2016 Gary Roderick                  gjroderick<at>gmail.com
 #
@@ -17,10 +17,10 @@
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see http://www.gnu.org/licenses/.
 #
-# Version: 0.5                                      Date: xx March 2017
+# Version: 0.5                                      Date: 29 January 2018
 #
 # Revision History
-#   xx March 2017       v0.5    - implemented port cycling to reset serial port
+#   29 January 2018     v0.5.0  - implemented port cycling to reset serial port
 #                                 after occasional CRC error
 #                               - fixed issue where inverter date-time was
 #                                 never added to the raw loop packet so could
@@ -33,8 +33,8 @@
 #                               - AuroraDriver send_cmd_with_crc() method now
 #                                 accepts additional arguments
 #                               - refactored calculate_energy()
-#   9 February 2017     v0.4    - implemented setTime() method
-#   7 February 2017     v0.3    - hex inverter response streams now printed as
+#   9 February 2017     v0.4.0  - implemented setTime() method
+#   7 February 2017     v0.3.0  - hex inverter response streams now printed as
 #                                 space separated bytes
 #                               - fixed various typos
 #                               - some test screen error output now syslog'ed
@@ -47,18 +47,18 @@
 #                               - added --monitor action to __main__
 #                               - improved delay loop in genLoopPackets()
 #                               - added usage instructions
-#   31 January 2017     v0.2    - no longer use the aurora application for
+#   31 January 2017     v0.2.0  - no longer use the aurora application for
 #                                 interrogating the inverter, communication
 #                                 with the inverter is now performed directly
 #                                 via the AuroraInverter class
-#   1 January 2017      v0.1    - initial release
+#   1 January 2017      v0.1.0  - initial release
 #
-""" A weeWX driver for the Power One Aurora PVI-6000 inverter.
+""" A weeWX driver for Power One Aurora inverters.
 
 The driver communicates directly with the inverter without the need for any
-other application. The driver produces loop packets that may be used with a
-custom weeWX schema to produce archive records may be stored and processed by
-the weeWX engine.
+other application. The driver produces loop packets that weeWX then aggregates
+into archive records that, when used with a custom database schema, allow weeWX
+to store and report inverter data.
 
 To use:
 
@@ -68,46 +68,26 @@ To use:
 
 ##############################################################################
 [Aurora]
-    # This section is for the Aurora Inverter driver
+    # This section is for the Power One Aurora series of inverters.
 
-    # model name
-    model = Aurora PVI-6000
+    # The inverter model, e.g., Aurora PVI-6000, Aurora PVI-5000
+    model = INSERT_MODEL_HERE
 
-    # port to use
+    # Serial port such as /dev/ttyS0, /dev/ttyUSB0, or /dev/cua0
     port = /dev/ttyUSB0
 
     # inverter address, usually 2
     address = 2
 
-    # how many tries to communicate with inverter before giving up, default = 3
-    max_tries = 3
-
-    # The time (in seconds) between LOOP packets. The time between LOOP packets
-    # is limited by time it takes to interrogate the inverter and receive a
-    # response. This time depends on the amount of data being sought from the
-    # inverter. Just the DSP data will take 2-3 seconds, DSP and any other data
-    # (extended DSP and energy) typically takes 4-5 seconds. Recommended
-    # setting is 10 sec or greater, recommended minimum is 6 sec, default = 10.
-    loop_interval = 10
-
-    # Use the time from the inverter or the time from weewx as the loop packet
-    # dateTime. Setting the inverter time causes cumulative energy data to be
-    # lost so it may be preferable to use weewx as the dateTime source. True
-    # or False, default = False.
-    use_inverter_time = False
-
     # The driver to use:
     driver = user.aurora
 
-    # Mapping of inverter readings to aurora archive schema fields. Format is:
+    # The driver queries the inverter to obtain readings and emits loop packets
+    # based on the sensor map. The sensor map format is:
     #
-    #   aurora archive schema field name = aurora reading name
+    #   weeWX loop packet field name = aurora reading name
     #
-    # On startup the AuroraDriver derives the aurora readings to use to
-    # construct the AuroraDriver loop packets from the aurora readings included
-    # in the [[FieldMap]]. All aurora readings included in the [[FieldMap]]
-    # must be a key from the user.aurora.AuroraInverter.commands dict.
-    [[FieldMap]]
+    [[sensor_map]]
         timeDate = getTimeDate
         string1Voltage = getStr1V
         string1Current = getStr1C
@@ -222,7 +202,7 @@ weewx.units.obs_group_dict['energy'] = 'group_energy'
 
 Standalone testing
 
-This driver can be run in standalone mode without the overheads of the weeWX 
+This driver can be run in standalone mode without the overheads of the weeWX
 engine and services. The available options can be displayed using:
 
     $ PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/aurora.py --help
@@ -921,7 +901,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
 
         _manifest = []
         _field_map = {}
-        _field_map_config = inverter_dict.get('FieldMap')
+        _field_map_config = inverter_dict.get('sensor_map')
         for dest, src in _field_map_config.iteritems():
             if src in self.inverter.commands:
                 _manifest.append(src)
@@ -940,6 +920,7 @@ class AuroraInverter(object):
     """Class to support serial comms with an Aurora PVI-6000 inverter."""
 
     DEFAULT_PORT = '/dev/ttyUSB0'
+    DEFAULT_ADDRESS = '2'
 
     def __init__(self, port, baudrate=19200, timeout=2.0,
                  wait_before_retry=1.0, command_delay=0.05):
@@ -1553,42 +1534,40 @@ class AuroraConfEditor(weewx.drivers.AbstractConfEditor):
     # This section is for the Power One Aurora series of inverters.
 
     # The inverter model, e.g., Aurora PVI-6000, Aurora PVI-5000
-    model = Aurora PVI-6000
+    model = INSERT_MODEL_HERE
 
     # Serial port such as /dev/ttyS0, /dev/ttyUSB0, or /dev/cua0
     port = %s
 
+    # inverter address, usually 2
+    address = %s
+
     # The driver to use:
     driver = user.aurora
-
-    # Mapping of inverter readings to aurora archive schema fields. Format is:
-    #
-    #   aurora archive schema field name = aurora reading name
-    #
-    # On startup the AuroraDriver derives the aurora readings to use to
-    # construct the AuroraDriver loop packets from the aurora readings included
-    # in the [[FieldMap]]. All aurora readings included in the [[FieldMap]]
-    # must be a key from the user.aurora.AuroraInverter.commands dict.
-    #[[FieldMap]]
-%s
-""" % (AuroraInverter.DEFAULT_PORT,
-       "\n".join(["    #   %s = %s" % (x, AuroraDriver.DEFAULT_MAP[x]) for x in AuroraDriver.DEFAULT_MAP]))
+""" % (AuroraInverter.DEFAULT_PORT, AuroraInverter.DEFAULT_ADDRESS)
 
     def prompt_for_settings(self):
 
-        print "Specify the inverter model, for example: Aurora PVI-6000 or Aurora PVI-6000"
+        print "Specify the inverter model, for example: Aurora PVI-6000 or Aurora PVI-5000"
         model = self._prompt('model', 'Aurora PVI-6000')
         print "Specify the serial port on which the inverter is connected, for"
         print "example: /dev/ttyUSB0 or /dev/ttyS0 or /dev/cua0."
         port = self._prompt('port', AuroraInverter.DEFAULT_PORT)
+        print "Specify the inverter address, normally 2"
+        address = self._prompt('address', AuroraInverter.DEFAULT_ADDRESS)
         return {'model': model,
-                'port': port}
+                'port': port,
+                'address': address}
 
     def modify_config(self, config_dict):
 
-        print """
-Setting record_generation to software."""
+        print """Setting record_generation to software."""
         config_dict['StdArchive']['record_generation'] = 'software'
+        print """Setting energy extractor to sum."""
+        if 'Accumulator' in config_dict:
+            config_dict['Accumulator']['energy'] = {'extractor': 'sum'}
+        else:
+            config_dict['Accumulator'] = {'energy': {'extractor': 'sum'}}
 
 
 # ============================================================================
