@@ -302,8 +302,10 @@ def main() :
         _rec['dateTime'] = record['dateTime']
         # generate the subset of this record for posting
         for wf in manifest:
-            if wf in record:
+            if wf in record and record[wf] is not None:
                 _rec[wf] = record[wf]
+            else:
+                _rec[wf] = -1
 
         # Check if we have any data to post. This is a 2 part check, first do
         # we have any data in the required fields for this record and finally

@@ -21,6 +21,7 @@
 #
 # Revision History
 #  24 February 2017     v0.2.3  - added missing socket import
+#                               - fixed incorrect FailedPost call
 #  14 February 2017     v0.2.2  - fixed incorrect record fields used in
 #                                 PVOutputAPI.addbatchstatus()
 #                               - removed some early development code
@@ -389,7 +390,7 @@ class PVOutputThread(weewx.restx.RESTThread):
             # This is executed only if the loop terminates normally, meaning
             # the upload failed max_tries times. Raise an exception. Caller
             # can decide what to do with it.
-            raise FailedPost("Failed upload after %d tries" % (self.max_tries,))
+            raise weewx.restx.FailedPost("Failed upload after %d tries" % (self.max_tries,))
 
     def check_response(self, response):
         """Check the response from a HTTP post."""
@@ -586,7 +587,6 @@ class PVOutputAPI(object):
         url = self.base_url + service_script
         payload = urllib.urlencode(data)
         # create a Request object
-        # request = urllib2.Request(url=url, data=urllib.urlencode(data))
         request = urllib2.Request(url=url)
         # add our headers, in this case sid and api_key
         request.add_header('X-Pvoutput-Apikey', self.api_key)
@@ -602,9 +602,6 @@ class PVOutputAPI(object):
                 _status_code = _response.getcode()
                 if _status_code == 200:
                     # we have a good status so we are done
-                    ##if service_script == '/service/r2/addstatus.jsp':
-                    ##    raise HTTPResponseError("%s returned a bad HTTP response code: %s" % (url,
-                    ##                                                                          _status_code))
                     break
                 else:
                     # something went wrong, so raise it
