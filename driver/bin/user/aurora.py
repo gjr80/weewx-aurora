@@ -17,41 +17,44 @@
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see http://www.gnu.org/licenses/.
 #
-# Version: 0.5                                      Date: 29 January 2018
+# Version: 0.5                                          Date: 29 January 2018
 #
 # Revision History
-#   29 January 2018     v0.5.0  - implemented port cycling to reset serial port
-#                                 after occasional CRC error
-#                               - fixed issue where inverter date-time was
-#                                 never added to the raw loop packet so could
-#                                 never be used as the resulting loop packet
-#                                 timestamp
-#                               - added confeditor_loader() function
-#                               - revised logging output format to be more
-#                                 consistent
-#                               - added more arguments to AuroraInverter class
-#                               - AuroraDriver send_cmd_with_crc() method now
-#                                 accepts additional arguments
-#                               - refactored calculate_energy()
-#   9 February 2017     v0.4.0  - implemented setTime() method
-#   7 February 2017     v0.3.0  - hex inverter response streams now printed as
-#                                 space separated bytes
-#                               - fixed various typos
-#                               - some test screen error output now syslog'ed
-#                               - genLoopPackets() now produces 'None' packets
-#                                 when the inverter is off line
-#                               - converted a number of class properties that
-#                                 were set on __init__ to @property that are
-#                                 queried when required
-#                               - inverter state request response now decoded
-#                               - added --monitor action to __main__
-#                               - improved delay loop in genLoopPackets()
-#                               - added usage instructions
-#   31 January 2017     v0.2.0  - no longer use the aurora application for
-#                                 interrogating the inverter, communication
-#                                 with the inverter is now performed directly
-#                                 via the AuroraInverter class
-#   1 January 2017      v0.1.0  - initial release
+#   29 January 2018     v0.5.0
+#       - implemented port cycling to reset serial port after occasional CRC
+#         error
+#       - fixed issue where inverter date-time was never added to the raw loop
+#         packet so could never be used as the resulting loop packet timestamp
+#       - added confeditor_loader() function
+#       - revised logging output format to be more consistent
+#       - added more arguments to AuroraInverter class
+#       - AuroraDriver send_cmd_with_crc() method now accepts additional
+#         arguments
+#       - refactored calculate_energy()
+#       - units, groups, conversions and formatting defaults are now defined in
+#         the driver rather than via additions to extensions.py
+#       - renamed driver config option [[FieldMap]] to [[sensor_map]] and
+#         implemented a default sensor map
+#   9 February 2017     v0.4.0
+#       - implemented setTime() method
+#   7 February 2017     v0.3.0
+#       - hex inverter response streams now printed as space separated bytes
+#       - fixed various typos
+#       - some test screen error output now syslog'ed
+#       - genLoopPackets() now produces 'None' packets when the inverter is off
+#         line
+#       - converted a number of class properties that were set on __init__ to
+#         @property that are queried when required
+#       - inverter state request response now decoded
+#       - added --monitor action to __main__
+#       - improved delay loop in genLoopPackets()
+#       - added usage instructions
+#   31 January 2017     v0.2.0
+#       - no longer use the aurora application for interrogating the inverter,
+#         communication with the inverter is now performed directly via the
+#         AuroraInverter class
+#   1 January 2017      v0.1.0
+#       - initial release
 #
 """ A weeWX driver for Power One Aurora inverters.
 
@@ -82,37 +85,6 @@ To use:
     # The driver to use:
     driver = user.aurora
 
-    # The driver queries the inverter to obtain readings and emits loop packets
-    # based on the sensor map. The sensor map format is:
-    #
-    #   weeWX loop packet field name = aurora reading name
-    #
-    [[sensor_map]]
-        timeDate = getTimeDate
-        string1Voltage = getStr1V
-        string1Current = getStr1C
-        string1Power = getStr1P
-        string2Voltage = getStr2V
-        string2Current = getStr2C
-        string2Power = getStr2P
-        gridVoltage = getGridV
-        gridCurrent = getGridC
-        gridPower = getGridP
-        gridFrequency = getFrequency
-        inverterTemp = getInverterT
-        boosterTemp = getBoosterT
-        bulkVoltage = getBulkV
-        isoResistance = getIsoR
-        bulkmidVoltage = getBulkMidV
-        bulkdcVoltage = getBulkDcV
-        leakdcCurrent = getLeakDcC
-        leakCurrent = getLeakC
-        griddcVoltage = getGridDcV
-        gridavgVoltage = getGridAvV
-        gridnVoltage = getPeakP
-        griddcFrequency = getGridDcFreq
-        dayEnergy = getDayEnergy
-
 ##############################################################################
 
 3.  Add the following section to weewx.conf:
@@ -127,26 +99,65 @@ To use:
 4   Edit weewx.conf as follows:
 
     - under [Station] set station_type = Aurora
-    - unless required for any other purpose, disable any report under
-      [StdReport]
-    - under [DataBindings] create a new binding for the Aurora data
     - under [StdArchive] set record_generation = software
-    - under [StdArchive] set data_binding to the name of the data binding to
-      be used for Aurora data
     - under [Engine] [[Services]] remove weewx.engine.StdTimeSynch from
       prep_services
-    - under [Engine] [[Services]] remove weewx.wxservices.StdWXCalculate from
-      process_services
-    - under [Engine] [[Services]] remove all restful_services except
-      user.pvoutput.StdPVOutput (if required)
 
-4.  Add the following to /home/weewx/bin/user/extensions.py:
+4.  Stop then start weeWX.
 
-# ============================================================================
-#                  Aurora units definitions and functions
-# ============================================================================
+Standalone testing
 
-import weewx.units
+This driver can be run in standalone mode without the overheads of the weeWX
+engine and services. The available options can be displayed using:
+
+    $ PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/aurora.py --help
+
+The options can be selected using:
+
+    $ PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/aurora.py --option
+
+    where option is one of the options listed by --help
+"""
+
+from __future__ import with_statement
+import serial
+import struct
+import syslog
+import time
+
+
+# weeWX imports
+import weewx.drivers
+
+from weeutil.weeutil import option_as_list, to_bool
+
+# our name and version number
+DRIVER_NAME = 'Aurora'
+DRIVER_VERSION = '0.5.0'
+
+
+def logmsg(level, msg):
+    syslog.syslog(level, 'aurora: %s' % msg)
+
+
+def logdbg(msg):
+    logmsg(syslog.LOG_DEBUG, msg)
+
+
+def logdbg2(msg):
+    if weewx.debug >= 2:
+        logmsg(syslog.LOG_DEBUG, msg)
+
+
+def loginf(msg):
+    logmsg(syslog.LOG_INFO, msg)
+
+
+def logerr(msg):
+    logmsg(syslog.LOG_ERR, msg)
+
+# define unit groups, formats and conversions for units used by the aurora
+# driver
 
 # create groups for frequency and resistance
 weewx.units.USUnits['group_frequency'] = 'hertz'
@@ -198,60 +209,6 @@ weewx.units.obs_group_dict['gridnVoltage'] = 'group_volt'
 weewx.units.obs_group_dict['griddcFrequency'] = 'group_frequency'
 weewx.units.obs_group_dict['energy'] = 'group_energy'
 
-5.  Stop then start weeWX.
-
-Standalone testing
-
-This driver can be run in standalone mode without the overheads of the weeWX
-engine and services. The available options can be displayed using:
-
-    $ PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/aurora.py --help
-
-The options can be selected using:
-
-    $ PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/aurora.py --option
-
-    where option is one of the options listed by --help
-"""
-
-from __future__ import with_statement
-import serial
-import struct
-import syslog
-import time
-
-
-# weeWX imports
-import weewx.drivers
-
-from weeutil.weeutil import option_as_list, to_bool
-
-# our name and version number
-DRIVER_NAME = 'Aurora'
-DRIVER_VERSION = '0.4'
-
-
-def logmsg(level, msg):
-    syslog.syslog(level, 'aurora: %s' % msg)
-
-
-def logdbg(msg):
-    logmsg(syslog.LOG_DEBUG, msg)
-
-
-def logdbg2(msg):
-    if weewx.debug >= 2:
-        logmsg(syslog.LOG_DEBUG, msg)
-
-
-def loginf(msg):
-    logmsg(syslog.LOG_INFO, msg)
-
-
-def logerr(msg):
-    logmsg(syslog.LOG_ERR, msg)
-
-
 def loader(config_dict, engine):  # @UnusedVariable
     return AuroraDriver(config_dict[DRIVER_NAME])
 
@@ -277,34 +234,32 @@ class DataFormatError(StandardError):
 class AuroraDriver(weewx.drivers.AbstractDevice):
     """Class representing connection to Aurora inverter."""
 
-    # default field map
-    DEFAULT_MAP = {'string1Voltage':  'STR1-V',
-                   'string1Current':  'STR1-C',
-                   'string1Power':    'STR1-P',
-                   'string2Voltage':  'STR2-V',
-                   'string2Current':  'STR2-C',
-                   'string2Power':    'STR2-P',
-                   'gridVoltage':     'Grid-V',
-                   'gridCurrent':     'Grid-C',
-                   'gridPower':       'Grid-P',
-                   'gridFrequency':   'Grid-Hz',
-                   'efficiency':      'DcAcCvrEff',
-                   'inverterTemp':    'InvTemp',
-                   'boosterTemp':     'EnvTemp',
-                   'bulkVoltage':     'Bulk-V',
-                   'isoResistance':   'IsoRes',
-                   'in1Power':        'Pin1-W',
-                   'in2Power':        'Pin2-W',
-                   'bulkmidVoltage':  'BilkM-V',
-                   'bulkdcVoltage':   'Bulk-DC',
-                   'leakdcCurrent':   'Leak-DC',
-                   'leakCurrent':     'Leak-C',
-                   'griddcVoltage':   'GridV-DC',
-                   'gridavgVoltage':  'GridAvg-V',
-                   'gridnVoltage':    'GridN-V',
-                   'griddcFrequency': 'GridDC-Hz',
-                   'dayEnergy':       'DailyEnergy'
-                  }
+    # default sensor map
+    DEFAULT_SENSOR_MAP = {'timeDate': 'getTimeDate',
+                          'string1Voltage': 'getStr1V',
+                          'string1Current': 'getStr1C',
+                          'string1Power': 'getStr1P',
+                          'string2Voltage': 'getStr2V',
+                          'string2Current': 'getStr2C',
+                          'string2Power': 'getStr2P',
+                          'gridVoltage': 'getGridV',
+                          'gridCurrent': 'getGridC',
+                          'gridPower': 'getGridP',
+                          'gridFrequency': 'getFrequency',
+                          'inverterTemp': 'getInverterT',
+                          'boosterTemp': 'getBoosterT',
+                          'bulkVoltage': 'getBulkV',
+                          'isoResistance': 'getIsoR',
+                          'bulkmidVoltage': 'getBulkMidV',
+                          'bulkdcVoltage': 'getBulkDcV',
+                          'leakdcCurrent': 'getLeakDcC',
+                          'leakCurrent': 'getLeakC',
+                          'griddcVoltage': 'getGridDcV',
+                          'gridavgVoltage': 'getGridAvV',
+                          'gridnVoltage': 'getPeakP',
+                          'griddcFrequency': 'getGridDcFreq',
+                          'dayEnergy': 'getDayEnergy'
+                         }
 
     # transmission state code map
     TRANSMISSION = {0: 'Everything is OK',
@@ -901,7 +856,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
 
         _manifest = []
         _field_map = {}
-        _field_map_config = inverter_dict.get('sensor_map')
+        _field_map_config = inverter_dict.get('sensor_map', DEFAULT_SENSOR_MAP)
         for dest, src in _field_map_config.iteritems():
             if src in self.inverter.commands:
                 _manifest.append(src)
