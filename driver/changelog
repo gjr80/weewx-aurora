@@ -1,2 +1,33 @@
 v0.5.0
 *   initial release as an extension
+*   implemented port cycling to reset serial port after occasional CRC error
+*   fixed issue where inverter date-time was never added to the raw loop packet 
+    so could never be used as the resulting loop packet timestamp
+*   added confeditor_loader() function
+*   revised logging output format to be more consistent
+*   added more arguments to AuroraInverter class
+*   AuroraDriver send_cmd_with_crc() method now accepts additional arguments
+*   refactored calculate_energy()
+*   units, groups, conversions and formatting defaults are now defined in the 
+    driver rather than via additions to extensions.py
+*   renamed driver config option [[FieldMap]] to [[sensor_map]] and implemented 
+    a default sensor map
+v0.4.0
+*   implemented setTime() method
+v0.3.0
+*   hex inverter response streams now printed as space separated bytes
+*   fixed various typos
+*   some test screen error output now syslog'ed
+*   genLoopPackets() now produces 'None' packets when the inverter is off line
+*   converted a number of class properties that were set on __init__ to
+    @property that are queried when required
+*   inverter state request response now decoded
+*   added --monitor action to __main__
+*   improved delay loop in genLoopPackets()
+*   added usage instructions
+v0.2.0
+*   no longer use the aurora application for interrogating the inverter,
+    communication with the inverter is now performed directly via the
+    AuroraInverter class
+v0.1.0
+*   initial release

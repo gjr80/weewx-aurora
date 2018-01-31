@@ -17,10 +17,10 @@
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see http://www.gnu.org/licenses/.
 #
-# Version: 0.5                                          Date: 29 January 2018
+# Version: 0.5.0                                        Date: 31 January 2018
 #
 # Revision History
-#   29 January 2018     v0.5.0
+#   31 January 2018     v0.5.0
 #       - implemented port cycling to reset serial port after occasional CRC
 #         error
 #       - fixed issue where inverter date-time was never added to the raw loop

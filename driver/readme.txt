@@ -21,7 +21,7 @@ a directory that may be different from system to system. The following symbolic
 names are used below:
 
 -   $DOWNLOAD_ROOT. The path to the directory containing the downloaded
-    Realtime gauge-data extension.
+    Aurora driver extension.
 
 1.  Download the latest Aurora driver extension from the Aurora driver releases
 page (https://github.com/gjr80/weewx-aurora/releases) into a directory
@@ -41,7 +41,7 @@ accessible from the weeWX machine.
     $ sudo service weewx stop
 
 3.  Install the Aurora driver extension downloaded at step 1 using the
-*wee_extension* utility:
+wee_extension utility:
 
     $ wee_extension --install=$DOWNLOAD_ROOT/aurora-0.5.0.tar.gz
 

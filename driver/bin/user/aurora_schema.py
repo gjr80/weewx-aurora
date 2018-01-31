@@ -17,10 +17,10 @@
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see http://www.gnu.org/licenses/.
 #
-# Version: 0.5.0                                      Date: 29 January 2018
+# Version: 0.5.0                                      Date: 31 January 2018
 #
 # Revision History
-#   29 January 2018     v0.5.0
+#   31 January 2018     v0.5.0
 #       - bumped version number only
 #   9 February 2017     v0.4.0
 #       - bumped version number only

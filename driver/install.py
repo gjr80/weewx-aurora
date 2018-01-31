@@ -11,11 +11,11 @@
 #
 #                     Installer for Aurora inverter driver
 #
-# Version: 0.5.0                                    Date: 29 January 2018
+# Version: 0.5.0                                    Date: 31 January 2018
 #
 # Revision History
-#  29 January 2018  v0.5.0
-#       - initial implementation
+#  31 January 2018  v0.5.0
+#       - initial implementation as an extension
 #
 
 import weewx
