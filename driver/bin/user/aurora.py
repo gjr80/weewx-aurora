@@ -507,7 +507,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         # Build the manifest of readings to be included in the loop packet.
         # Build the Aurora reading to loop packet field map.
         (self.field_map, self.manifest) = self._build_map_manifest(aurora_dict)
-        loginf('self.field_map=%s' % (self.field_map,))
+        loginf('sensor_map=%s' % (self.field_map,))
         # build a 'none' packet to use when the inverter is offline
         self.none_packet = {}
         for src in self.manifest:
