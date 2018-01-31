@@ -67,7 +67,8 @@ To use:
 
 1.  Copy this file to /home/weewx/bin/user.
 
-2.  Add the following section to weewx.conf setting options as required:
+2.  Add the following section to weewx.conf setting model, port and address
+options as required:
 
 ##############################################################################
 [Aurora]
@@ -99,7 +100,7 @@ To use:
 4   Edit weewx.conf as follows:
 
     - under [Station] set station_type = Aurora
-    - under [StdArchive] set record_generation = software
+    - under [StdArchive] ensure record_generation = software
     - under [Engine] [[Services]] remove weewx.engine.StdTimeSynch from
       prep_services
 
@@ -169,7 +170,7 @@ weewx.units.MetricWXUnits['group_resistance'] = 'ohm'
 
 # set default formats and labels for frequency and resistance
 weewx.units.default_unit_format_dict['hertz'] = '%.1f'
-weewx.units.default_unit_label_dict['hertz'] = ' ohm'
+weewx.units.default_unit_label_dict['hertz'] = ' Hz'
 weewx.units.default_unit_format_dict['ohm'] = '%.1f'
 weewx.units.default_unit_label_dict['ohm'] = ' ohm'
 
@@ -730,10 +731,10 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                 logerr("Inverter time was not set")
                 logerr("  ***** transmission state=%d (%s)" %
                            (_response.transmission_state,
-                            TRANSMISSION[response_rt.transmission_state]))
+                            AuroraDriver.TRANSMISSION[response_rt.transmission_state]))
                 logerr("  ***** global state=%d (%s)" %
                            (_response.global_state,
-                            GLOBAL[response_rt.global_state]))
+                            AuroraDriver.GLOBAL[response_rt.global_state]))
 
     def get_cumulated_energy(self, period=None):
         """Get 'cumulated' energy readings.
@@ -856,7 +857,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
 
         _manifest = []
         _field_map = {}
-        _field_map_config = inverter_dict.get('sensor_map', DEFAULT_SENSOR_MAP)
+        _field_map_config = inverter_dict.get('sensor_map', AuroraDriver.DEFAULT_SENSOR_MAP)
         for dest, src in _field_map_config.iteritems():
             if src in self.inverter.commands:
                 _manifest.append(src)
@@ -1598,7 +1599,7 @@ class ResponseTuple(tuple):
 # ============================================================================
 
 # Define a main entry point for basic testing without the weeWX engine and
-# service overhead. To invoke this:
+# service overhead. To invoke this driver without weeWX:
 #
 # $ sudo PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/aurora.py --option
 #
