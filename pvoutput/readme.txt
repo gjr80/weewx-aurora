@@ -1,6 +1,6 @@
 PVOutput Uploader extension
 
-Using weeWX to upload solar PV power generation data to PVOutput.
+A weeWX RESTful service to upload solar PV power generation data to PVOutput.
 
 
 Description
@@ -104,11 +104,11 @@ are set for the PVOutput system and API key to be used:
 
     $ sudo service weewx start
 
-The weeWX log should be monitored to verify data is being posting to PVOutput
-at the end of each archive period. Setting debug = 1 or debug = 2 in
-weewx.conf will provide additional information in the log. Using debug = 2 will
-generate significant amounts of log output and should only be used for
-verification of operation or testing.
+The weeWX log should be monitored to verify data is being posted to PVOutput at
+the end of each archive period. Setting debug = 1 or debug = 2 in weewx.conf 
+will provide additional information in the log. Using debug = 2 will generate 
+significant amounts of log output and should only be used for verification of 
+operation or testing.
 
 Manual installation
 
@@ -175,11 +175,11 @@ restful_services:
 
     $ sudo service weewx start
 
-The weeWX log should be monitored to verify data is being posting to PVOutput
-at the end of each archive period. Setting debug = 1 or debug = 2 in
-weewx.conf will provide additional information in the log. Using debug = 2 will
-generate significant amounts of log output and should only be used for
-verification of operation or testing.
+The weeWX log should be monitored to verify data is being posted to PVOutput at
+the end of each archive period. Setting debug = 1 or debug = 2 in weewx.conf 
+will provide additional information in the log. Using debug = 2 will generate 
+significant amounts of log output and should only be used for verification of 
+operation or testing.
 
 
 Support
