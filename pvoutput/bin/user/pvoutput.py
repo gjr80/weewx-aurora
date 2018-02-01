@@ -1,6 +1,6 @@
 # pvoutput.py
 #
-# Classes for interracting the PVOutput API.
+# A weeWX RESTful service to upload data to PVOutput.
 #
 # Copyright (C) 2016 Gary Roderick                  gjroderick<at>gmail.com
 #
@@ -17,41 +17,89 @@
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see http://www.gnu.org/licenses/.
 #
-# Version: 0.2.3                                    Date: 24 February 2017
+# Version: 0.3.0                                    Date: 1 February 2018
 #
 # Revision History
-#  24 February 2017     v0.2.3  - added missing socket import
-#                               - fixed incorrect FailedPost call
-#  14 February 2017     v0.2.2  - fixed incorrect record fields used in
-#                                 PVOutputAPI.addbatchstatus()
-#                               - removed some early development code
-#                               - documented signatures for
-#                                 PVOutputAPI.request_with_retries(),
-#                                 PVOutputAPI._post_request() and
-#                                 PVOutputAPI.addbatchstatus()
-#                               - PVOutputAPI.addstatus() now correctly returns
-#                                 the PVOutput response
-#                               - added 'to do' list to comments
-#  13 February 2017     v0.2.1  - fixed issue where an uncaught socket.timeout
-#                                 exception would crash PVOutputThread
-#   7 February 2017     v0.2    - check to ensure that PVOutputThread has the
-#                                 minimum required fields to post a status to
-#                                 PVOutput
-#   17 December 2016    v0.1    - initial release
+#   1 February 2018     v0.3.0
+#       - release as a weeWX extension
+#   24 February 2017    v0.2.3
+#       - added missing socket import
+#       - fixed incorrect FailedPost call
+#   14 February 2017    v0.2.2
+#       - fixed incorrect record fields used in PVOutputAPI.addbatchstatus()
+#       - removed some early development code
+#       - documented signatures for PVOutputAPI.request_with_retries(),
+#         PVOutputAPI._post_request() and PVOutputAPI.addbatchstatus()
+#       - PVOutputAPI.addstatus() now correctly returns the PVOutput response
+#       - added 'to do' list to comments
+#   13 February 2017    v0.2.1
+#       - fixed issue where an uncaught socket.timeout exception would crash
+#         PVOutputThread
+#   7 February 2017    v0.2.0
+#       - check to ensure that PVOutputThread has the minimum required fields
+#         to post a status to PVOutput
+#   17 December 2016   v0.1.0
+#       - initial release
 #
-# To do
-#
-# - PVOutputAPI.addbatchstatus(). Any exceptions raised need to details all
-#   records that had errors, not just the first error encountered.
-#
-"""Classes to interract with the PVOutput API.
+"""A weeWX RESTful service to upload data to PVOutput.
 
 Classes StdPVOutput and PVOutputThread are used as a weeWX RESTful service to
 post data to PVOutput.org.
 
 Class PVOuputAPI provides the ability to add, update, read and delete system
 data on PVOutput.org via the PVOutput API.
+
+Pre-requisites:
+
+Currently this uploader requires the following fields to be present in the
+weeWX archive:
+
+    - dayEnergy
+    - gridPower
+    - energyCons
+    - powerCons
+    - inverterTemp
+    - gridVoltage
+    - extended1
+    - extended2
+    - extended3
+    - extended4
+    - extended5
+    - extended6
+
+    Note: 1. At least one of dayEnergy, gridPower, energyCons or powerCons must
+             be present.
+          2. extended1-6 only able to be used if a PVOutput donor.
+          3. A future release of this uploader will enable the user to specify
+             which weeWX fields are to be uploaded to PVOutput.
+
+To use:
+
+1.  Copy this file to /home/weewx/bin/user.
+
+2.  Edit weewx.conf as follows:
+
+    - under [StdRESTful] add a [PVOutput]] stanza as follows entering
+      your system settings for system_id and api_key:
+
+    [[PVOutput]]
+        # This section is for configuring posts to PVOutput.
+
+        # If you wish to do this, set the option 'enable' to true,
+        # and specify a station and password.
+        enable = true
+        system_id = ENTER_PVOUTPUT_SYSTEM_ID_HERE
+        api_key = ENTER_PVOUTPUT_API_KEY_HERE
+
+    - under [Engine] [[Services]] add user.pvoutput.StdPVOutput to
+      restful_services
+
+3.  Stop then start weeWX.
+
+4.  WeeWX will then upload a status record to PVOutput at the end of each weeWX
+    archive period.
 """
+
 
 import datetime
 import httplib
@@ -252,12 +300,12 @@ class PVOutputThread(weewx.restx.RESTThread):
             raise weewx.restx.AbortedPost()
 
         # convert to metric if necessary
-        _metric_record = weewx.units.to_METRIC(_full_record)
+        _metric_rec = weewx.units.to_METRIC(_full_record)
 
         # initialise our parameter dictionary
         params = {}
         # add date and time for this record
-        time_tt = time.localtime(_metric_record['dateTime'])
+        time_tt = time.localtime(_metric_rec['dateTime'])
         params['d'] = time.strftime("%Y%m%d", time_tt)
         params['t'] = time.strftime("%H:%M", time_tt)
         # add c1 parameter if cumulative is set
@@ -272,8 +320,8 @@ class PVOutputThread(weewx.restx.RESTThread):
 
         # add any optional parameters from our data
         for rec_field, api_field in ADDSTATUS_PARAMS.iteritems():
-            if rec_field in _metric_record and _metric_record[rec_field] is not None:
-                params[api_field] = _metric_record[rec_field]
+            if rec_field in _metric_rec and _metric_rec[rec_field] is not None:
+                params[api_field] = _metric_rec[rec_field]
 
         # get the url to be used
         url = self.server_url + self.SERVICE_SCRIPT['addstatus']
@@ -299,13 +347,13 @@ class PVOutputThread(weewx.restx.RESTThread):
         PVOutput requires 'energy' in each status record to be a cumulative
         value (either day or lifetime). Cumulative values are not normally
         included in a weewx record/packet so we need to calculate the data
-        from the archive. In this case we will use the day cumualtive total.
+        from the archive. In this case we will use the day cumulative total.
         Returns results in the same units as the record.
 
         Input:
             record:    A weewx archive record containing the data to be added.
                        Dictionary.
-            dbmanager: Manager object for the database being used.
+            dbmanager: Manager object for the database being used. Object.
         Returns:
             A dictionary of values
         """
@@ -328,9 +376,7 @@ class PVOutputThread(weewx.restx.RESTThread):
                 if _result is not None and _result[0] is not None:
                     if not _result[1] == _result[2] == record['usUnits']:
                         raise ValueError("Inconsistent units (%s vs %s vs %s) when querying for dayEnergy" %
-                                             (_result[1],
-                                              _result[2],
-                                              record['usUnits']))
+                                             (_result[1], _result[2], record['usUnits']))
                     _datadict['dayEnergy'] = _result[0]
                 else:
                     _datadict['dayEnergy'] = None
@@ -380,7 +426,8 @@ class PVOutputThread(weewx.restx.RESTThread):
                 # Provide method for derived classes to behave otherwise if
                 # necessary.
                 self.handle_code(_response.code, _count+1)
-            except (urllib2.URLError, socket.error, httplib.BadStatusLine, httplib.IncompleteRead), e:
+            except (urllib2.URLError, socket.error,
+                    httplib.BadStatusLine, httplib.IncompleteRead), e:
                 # An exception was thrown. By default, log it and try again.
                 # Provide method for derived classes to behave otherwise if
                 # necessary.
@@ -390,7 +437,8 @@ class PVOutputThread(weewx.restx.RESTThread):
             # This is executed only if the loop terminates normally, meaning
             # the upload failed max_tries times. Raise an exception. Caller
             # can decide what to do with it.
-            raise weewx.restx.FailedPost("Failed upload after %d tries" % (self.max_tries,))
+            raise weewx.restx.FailedPost("Failed upload after %d tries" %
+                                         (self.max_tries,))
 
     def check_response(self, response):
         """Check the response from a HTTP post."""
@@ -451,7 +499,7 @@ class PVOutputThread(weewx.restx.RESTThread):
         if weewx.debug >= 2:
             syslog.syslog(syslog.LOG_DEBUG,
                           "pvoutput: %s: url: %s payload: %s" %
-                              (self.protocol_name, url, urllib.urlencode(params)))
+                          (self.protocol_name, url, urllib.urlencode(params)))
         # add our headers, in this case sid and api_key
         _request.add_header('X-Pvoutput-Apikey', self.api_key)
         _request.add_header('X-Pvoutput-SystemId', self.sid)
@@ -552,7 +600,7 @@ class PVOutputAPI(object):
                      }
 
     def __init__(self, **kwargs):
-        """"Initialiase the PVOutputAPI object."""
+        """"Initialise the PVOutputAPI object."""
 
         self.sid = kwargs.get('sid')
         self.api_key = kwargs.get('api_key')
@@ -633,7 +681,7 @@ class PVOutputAPI(object):
 
         try:
             # Python 2.5 and earlier does not have a 'timeout' parameter so be
-            # prepared to catch the exception and try a Pythoin 2.5 compatible
+            # prepared to catch the exception and try a Python 2.5 compatible
             # call.
             _response = urllib2.urlopen(request,
                                         data=payload,
@@ -668,7 +716,7 @@ class PVOutputAPI(object):
         information.
         """
 
-        # map our kwargs input prarameters to the fields required by the API
+        # map our kwargs input parameters to the fields required by the API
         GETSTATUS_PARAMS = {'date': 'd',
                             'time': 't',
                             'from': 'from',
@@ -715,7 +763,7 @@ class PVOutputAPI(object):
 
         Input:
             record:     A weewx archive record containing the data to be added.
-            cumulative: Set if energey field passed is lifetime cumulative
+            cumulative: Set if energy field passed is lifetime cumulative
                         (rather than daytime cumulative). Boolean, default
                         False.
             net:        Set if the power values passed are net export/import
@@ -800,7 +848,7 @@ class PVOutputAPI(object):
         _data_list = []
         # step through each record
         for record in records:
-            # resest the parameter list for this record
+            # reset the parameter list for this record
             _param_list = []
             # add date and time for this record
             time_tt = time.localtime(record['dateTime'])
@@ -848,7 +896,7 @@ class PVOutputAPI(object):
         for _result in results:
             # split an individual records result into its component fields
             _date, _time, _status = _result.split(",")
-            # if we failed to upload the records sucessfully
+            # if we failed to upload the records successfully
             if _status != "1":
                 # get a timestamp of the record
                 datetime_dt = datetime.datetime.strptime(" ".join(_date, _time),
@@ -866,7 +914,7 @@ class PVOutputAPI(object):
 
         Deletes the status matching a given timestamp. A ts of None results in
         no action and a returned value of None. Note that PVOutput API returns
-        a respone message of 'OK 200: Deleted Status' even when deleting a
+        a response message of 'OK 200: Deleted Status' even when deleting a
         non-existent status.
 
         Input:
@@ -972,42 +1020,3 @@ def _to_dict(data, fields, single_dict=False):
         return [result]
     else:
         return _result
-
-# define a main entry point used for basic testing of the PVOutpu thread during
-# development. Does away with the need for the weewx engine and service
-# overhead. To invoke this:
-#
-# PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/pvoutput.py
-
-if __name__ == '__main__':
-    import weewx.engine
-    import os.path
-    import Queue
-    import weewx.manager
-    import weewx.restx
-
-    config_path = os.path.abspath('/home/weewx/weewx.conf')
-    config_dict = weewx.engine.getConfiguration(config_path)
-    q = Queue.Queue()
-    _manager_dict = weewx.manager.get_manager_dict_from_config(config_dict,
-                                                               'aurora_binding')
-    _pvoutput_dict = weewx.restx.get_site_dict(config_dict,
-                                               'PVOutput',
-                                               'system_id',
-                                               'api_key')
-    _pvoutput_dict.setdefault('server_url', StdPVOutput.api_url)
-    pv_thread = PVOutputThread(q,
-                               _manager_dict,
-                               protocol_name="PVOutput-API",
-                               **_pvoutput_dict)
-    pv_thread.start()
-    record = {'dateTime':1482743100, 'energy':31590,
-              'temperature':37.5, 'voltage':250.0}
-    time.sleep(2)
-
-    q.put(record)
-    record = {'dateTime':1482743400, 'energy':31590,
-              'temperature':37.5, 'voltage':250.0}
-    time.sleep(2)
-    q.put(record)
-    time.sleep(10)
