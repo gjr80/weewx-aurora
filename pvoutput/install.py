@@ -46,7 +46,7 @@ class PVOutputInstaller(ExtensionInstaller):
             config={
                 'StdRESTful': {
                     'PVOutput': {
-                        'anable': 'false',
+                        'enable': 'false',
                         'system_id': 'ENTER_PVOUTPUT_SYSTEM_ID_HERE',
                         'api_key': 'ENTER_PVOUTPUT_API_KEY_HERE'
                     }
