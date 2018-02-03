@@ -1,14 +1,14 @@
-PVOutput Uploader extension
+PVOutput ploader extension
 
 A weeWX RESTful service to upload solar PV power generation data to PVOutput.
 
 
 Description
 
-The PVOutput Uploader extension allows uploading of solar PV power generation
+The PVOutput uploader extension allows uploading of solar PV power generation
 data to PVOutput using the PVOutput API.
 
-The PVOutput Uploader extension consists of:
+The PVOutput uploader extension consists of:
 -   a RESTful service for posting data to PVOutput, and
 -   a utility for bulk uploading of solar PV generation data to PVOutput should
     Internet access be lost for some period of time.
@@ -16,8 +16,7 @@ The PVOutput Uploader extension consists of:
 
 Pre-Requisites
 
-The PVOutput Uploader extension requires:
-
+The PVOutput uploader extension requires:
 -   weeWX v3.7.0 or greater
 -   a PVOutput account with system ID and API access key
 -   a weeWX system using a weeWX archive to record solar PV power generation
@@ -26,7 +25,7 @@ The PVOutput Uploader extension requires:
 
 Installation
 
-The PVOutput Uploader extension can be installed manually or automatically
+The PVOutput uploader extension can be installed manually or automatically
 using the wee_extension utility. The preferred method of installation is
 through the use of wee_extension.
 
@@ -36,7 +35,7 @@ directory that may be different from system to system. The following symbolic
 names are used below:
 
 -   $DOWNLOAD_ROOT. The path to the directory containing the downloaded
-    PVOutput Uploader extension.
+    PVOutput uploader extension.
 
 -   $BIN_ROOT. The path to the directory where weeWX executables are located.
     This directory varies depending on weeWX installation method. Refer to
@@ -46,11 +45,11 @@ names are used below:
 
 Installation using the wee_extension utility
 
-1.  Download the latest PVOutput Uploader extension from the PVOutput Uploader
+1.  Download the latest PVOutput uploader extension from the PVOutput Uploader
 extension releases page https://github.com/gjr80/weewx-aurora/releases into a
 directory accessible from the weeWX machine.
 
-    $ wget -P $DOWNLOAD_ROOT https://github.com/gjr80/weewx-aurora/releases/download/v0.3.0/pvoutput-0.3.0.tar.gz
+    $ wget -P $DOWNLOAD_ROOT https://github.com/gjr80/weewx-aurora/releases/download/v0.5.0-v0.3.0/pvoutput-0.3.0.tar.gz
 
     where $DOWNLOAD_ROOT is the path to the directory where the PVOutput
     Uploader extension is to be downloaded.
@@ -63,7 +62,7 @@ directory accessible from the weeWX machine.
 
     $ sudo service weewx stop
 
-3.  Install the PVOutput Uploader extension downloaded at step 1 using the
+3.  Install the PVOutput uploader extension downloaded at step 1 using the
 wee_extension utility:
 
     $ wee_extension --install=$DOWNLOAD_ROOT/pvoutput-0.3.0.tar.gz
@@ -105,18 +104,18 @@ are set for the PVOutput system and API key to be used:
     $ sudo service weewx start
 
 The weeWX log should be monitored to verify data is being posted to PVOutput at
-the end of each archive period. Setting debug = 1 or debug = 2 in weewx.conf 
-will provide additional information in the log. Using debug = 2 will generate 
-significant amounts of log output and should only be used for verification of 
+the end of each archive period. Setting debug = 1 or debug = 2 in weewx.conf
+will provide additional information in the log. Using debug = 2 will generate
+significant amounts of log output and should only be used for verification of
 operation or testing.
 
 Manual installation
 
-1.  Download the latest PVOutput Uploader extension from the PVOutput Uploader
+1.  Download the latest PVOutput uploader extension from the PVOutput Uploader
 extension releases page https://github.com/gjr80/weewx-aurora/releases into a
 directory accessible from the weeWX machine.
 
-    $ wget -P $DOWNLOAD_ROOT https://github.com/gjr80/weewx-aurora/releases/download/v0.3.0/pvoutput-0.3.0.tar.gz
+    $ wget -P $DOWNLOAD_ROOT https://github.com/gjr80/weewx-aurora/releases/download/v0.5.0-v0.3.0/pvoutput-0.3.0.tar.gz
 
     where $DOWNLOAD_ROOT is the path to the directory where the PVOutput
     Uploader extension is to be downloaded.
@@ -176,9 +175,9 @@ restful_services:
     $ sudo service weewx start
 
 The weeWX log should be monitored to verify data is being posted to PVOutput at
-the end of each archive period. Setting debug = 1 or debug = 2 in weewx.conf 
-will provide additional information in the log. Using debug = 2 will generate 
-significant amounts of log output and should only be used for verification of 
+the end of each archive period. Setting debug = 1 or debug = 2 in weewx.conf
+will provide additional information in the log. Using debug = 2 will generate
+significant amounts of log output and should only be used for verification of
 operation or testing.
 
 
@@ -187,12 +186,11 @@ Support
 General support issues may be raised in the Google Groups weewx-user forum
 (https://groups.google.com/group/weewx-user . Specific bugs in the PVOutput
 Uploader extension code should be the subject of a new issue raised via the
-PVOutput Uploader extension issues page
+PVOutput uploader extension issues page
 https://github.com/gjr80/weewx-aurora/issues.
 
 
 Licensing
 
-The PVOutput Uploader extension is licensed under the GNU Public License v3
+The PVOutput uploader extension is licensed under the GNU Public License v3
 (https://github.com/gjr80/weewx-aurora/blob/master/LICENSE.
-

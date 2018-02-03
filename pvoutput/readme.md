@@ -83,7 +83,7 @@ The *PVOutput uploader* extension can be installed manually or automatically usi
 
         $ sudo service weewx start
 
-The weeWX log should be monitored to verify data is being posted to PVOutput at the end of each archive period. Setting *debug = 1* or *debug = 2* in *weewx.conf* will provide additional information in the log. Using *debug = 2* will generate significant amounts of log output and should only be used for verification of operation or testing.
+1.  The weeWX log should be monitored to verify data is being posted to PVOutput at the end of each archive period. Setting *debug = 1* or *debug = 2* in *weewx.conf* will provide additional information in the log. Using *debug = 2* will generate significant amounts of log output and should only be used for verification of operation or testing.
 
 ### Manual installation ###
 
@@ -143,13 +143,11 @@ The weeWX log should be monitored to verify data is being posted to PVOutput at 
 
         $ sudo service weewx start
 
-The weeWX log should be monitored to verify data is being posted to PVOutput at the end of each archive period. Setting *debug = 1* or *debug = 2* in *weewx.conf* will provide additional information in the log. Using *debug = 2* will generate significant amounts of log output and should only be used for verification of operation or testing.
-
+1.  The weeWX log should be monitored to verify data is being posted to PVOutput at the end of each archive period. Setting *debug = 1* or *debug = 2* in *weewx.conf* will provide additional information in the log. Using *debug = 2* will generate significant amounts of log output and should only be used for verification of operation or testing.
 
 ## Support ##
 
 General support issues may be raised in the Google Groups [weewx-user forum](https://groups.google.com/group/weewx-user). Specific bugs in the *PVOutput uploader*r extension code should be the subject of a new issue raised via the [*PVOutput uploader* extension issues page](https://github.com/gjr80/weewx-aurora/issues).
-
 
 ## Licensing ##
 
