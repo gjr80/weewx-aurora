@@ -17,9 +17,11 @@
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see http://www.gnu.org/licenses/.
 #
-# Version: 0.5.0                                      Date: 31 January 2018
+# Version: 0.5.1                                      Date: 3 February 2018
 #
 # Revision History
+#   3 February 2018     v0.5.1
+#       - bumped version number only
 #   31 January 2018     v0.5.0
 #       - bumped version number only
 #   9 February 2017     v0.4.0
@@ -45,7 +47,7 @@
 # primary key indexes (type "dateTime").
 # ============================================================================
 #
-AURORA_SCHEMA_VERSION = '0.5.0'
+AURORA_SCHEMA_VERSION = '0.5.1'
 
 # Define schema for archive table
 aurora_schema = [

@@ -17,9 +17,11 @@
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see http://www.gnu.org/licenses/.
 #
-# Version: 0.5.0                                        Date: 31 January 2018
+# Version: 0.5.1                                        Date: 3 February 2018
 #
 # Revision History
+#   3 February 2018     v0.5.1
+#       - reworked install comments
 #   31 January 2018     v0.5.0
 #       - implemented port cycling to reset serial port after occasional CRC
 #         error
@@ -101,8 +103,6 @@ options as required:
 
     - under [Station] set station_type = Aurora
     - under [StdArchive] ensure record_generation = software
-    - under [Engine] [[Services]] remove weewx.engine.StdTimeSynch from
-      prep_services
 
 4.  Stop then start weeWX.
 
@@ -134,7 +134,7 @@ from weeutil.weeutil import option_as_list, to_bool
 
 # our name and version number
 DRIVER_NAME = 'Aurora'
-DRIVER_VERSION = '0.5.0'
+DRIVER_VERSION = '0.5.1'
 
 
 def logmsg(level, msg):

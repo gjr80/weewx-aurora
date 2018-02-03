@@ -1,3 +1,6 @@
+v0.5.1
+*   updated readme
+*   updated aurora.py install comments
 v0.5.0
 *   initial release as an extension
 *   implemented port cycling to reset serial port after occasional CRC error
