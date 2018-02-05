@@ -218,8 +218,10 @@ weewx.units.obs_group_dict['gridnVoltage'] = 'group_volt'
 weewx.units.obs_group_dict['griddcFrequency'] = 'group_frequency'
 weewx.units.obs_group_dict['energy'] = 'group_energy'
 
+
 def loader(config_dict, engine):  # @UnusedVariable
     return AuroraDriver(config_dict[DRIVER_NAME])
+
 
 def confeditor_loader():
     return AuroraConfEditor()
@@ -273,7 +275,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                           'yearEnergy': 'yearEnergy',
                           'totalEnergy': 'totalEnergy',
                           'partialEnergy': 'partialEnergy',
-                         }
+                          }
 
     # lookup table used to determine inverter command to be used for each raw
     # data packet field
@@ -306,7 +308,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                      'yearEnergy': 'getYearEnergy',
                      'totalEnergy': 'getTotalEnergy',
                      'partialEnergy': 'getPartialEnergy'
-                    }
+                     }
 
     # transmission state code map
     TRANSMISSION = {0: 'Everything is OK',
@@ -318,7 +320,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                     56: 'Can not send the command to internal micro',
                     57: 'Command not Executed',
                     58: 'The variable is not available, retry'
-                   }
+                    }
 
     # inverter system module state code maps
 
@@ -364,7 +366,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
               99: 'Erasing External EEprom',
               100: 'Counting EEprom',
               101: 'Freeze'
-             }
+              }
 
     # inverter state
     INVERTER = {0: 'Stand By',
@@ -407,7 +409,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                 45: 'MPPT',
                 46: 'Grid Fail',
                 47: 'Input OC'
-               }
+                }
 
     # DC/DC channel states
     DCDC = {0: 'DcDc OFF',
@@ -430,7 +432,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
             17: 'DcDc ILEAK Fail',
             18: 'DcDc Grid Fail',
             19: 'DcDc Comm Error'
-           }
+            }
 
     # alarm states
     ALARM = {0:  {'description': 'No Alarm',          'code': None},
@@ -498,7 +500,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
              62: {'description': 'Grid df/dt',        'code': 'W015'},
              63: {'description': 'Den switch Open',   'code': 'W016'},
              64: {'description': 'Jbox fail',         'code': 'W017'}
-            }
+             }
 
     def __init__(self, aurora_dict):
         """Initialise an object of type AuroroaDriver."""
@@ -516,19 +518,19 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         wait_before_retry = float(aurora_dict.get('wait_before_retry', 1.0))
         command_delay = float(aurora_dict.get('command_delay', 0.05))
         logdbg('   using port %s baudrate %d timeout %s' % (port,
-                                                                       baudrate,
-                                                                       timeout))
+                                                            baudrate,
+                                                            timeout))
         logdbg('   wait_before_retry %s command_delay %s' % (wait_before_retry,
-                                                                        command_delay))
+                                                             command_delay))
         # driver options
         self.max_command_tries = int(aurora_dict.get('max_command_tries', 3))
         self.polling_interval = int(aurora_dict.get('loop_interval', 10))
         self.address = int(aurora_dict.get('address', 2))
         self.max_loop_tries = int(aurora_dict.get('max_loop_tries', 3))
         logdbg('   inverter address %d will be polled every %d seconds' %
-                   (self.address, self.polling_interval))
+               (self.address, self.polling_interval))
         logdbg('   max_command_tries %d max_loop_tries %d' %
-                   (self.max_command_tries, self.max_loop_tries))
+               (self.max_command_tries, self.max_loop_tries))
 
         # get an AuroraInverter object
         self.inverter = AuroraInverter(port,
@@ -546,8 +548,8 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         self.last_energy = None
 
         # get the sensor map
-        self.sensor_map = inverter_dict.get('sensor_map',
-                                            AuroraDriver.DEFAULT_SENSOR_MAP)
+        self.sensor_map = aurora_dict.get('sensor_map',
+                                          AuroraDriver.DEFAULT_SENSOR_MAP)
         loginf('sensor_map=%s' % (self.sensor_map,))
 
         # build a 'none' packet to use when the inverter is offline
@@ -590,7 +592,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                         else:
                             raw_packet = self.none_packet
                     logdbg2("genLoopPackets: received raw data packet: %s" %
-                                raw_packet)
+                            raw_packet)
                     # process raw data and return a dict that can be used as a
                     # LOOP packet
                     packet = self.process_raw_packet(raw_packet)
@@ -616,7 +618,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                             self.last_energy = None
 
                         logdbg2("genLoopPackets: received loop packet: %s" %
-                                    packet)
+                                packet)
                         yield packet
                     # wait until its time to poll again
                     logdbg2("genLoopPackets: Sleeping")
@@ -633,7 +635,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
 
         _packet = {}
         # iterate over each reading we need to get
-        for field, command in AuroraDrive.SENSOR_LOOKUP:
+        for field, command in AuroraDriver.SENSOR_LOOKUP:
             # get the reading
             _response = self.do_cmd(command)
             # If the inverter is running set the running property and save the
@@ -769,11 +771,11 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                 # failure and the returned states
                 logerr("Inverter time was not set")
                 logerr("  ***** transmission state=%d (%s)" %
-                           (_response.transmission_state,
-                            AuroraDriver.TRANSMISSION[response_rt.transmission_state]))
+                       (_response.transmission_state,
+                        AuroraDriver.TRANSMISSION[response_rt.transmission_state]))
                 logerr("  ***** global state=%d (%s)" %
-                           (_response.global_state,
-                            AuroraDriver.GLOBAL[response_rt.global_state]))
+                       (_response.global_state,
+                        AuroraDriver.GLOBAL[response_rt.global_state]))
 
     def get_last_alarms(self):
         """Get the last four alarms."""
@@ -783,7 +785,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
     def get_dsp(self):
         """Get DSP data."""
 
-        manifest = dict((k,v) for k,v in self.inverter.commands.iteritems() if v['cmd'] == 59)
+        manifest = dict((k, v) for k, v in self.inverter.commands.iteritems() if v['cmd'] == 59)
 
         _dsp = {}
         for reading, params in manifest.iteritems():
@@ -902,6 +904,7 @@ class AuroraInverter(object):
             'getPartialEnergy':   {'cmd': 78, 'sub':  6,    'fn': self._dec_int},
             'getLastAlarms':      {'cmd': 86, 'sub':  None, 'fn': self._dec_alarms}
         }
+        self.serial_port = None
 
     def open_port(self):
         """Open a serial port."""
@@ -934,7 +937,7 @@ class AuroraInverter(object):
         """
 
         try:
-            N = self.serial_port.write(data)
+            n = self.serial_port.write(data)
         except serial.serialutil.SerialException, e:
             logerr("SerialException on write.")
             logerr("  ***** %s" % e)
@@ -942,9 +945,9 @@ class AuroraInverter(object):
             raise weewx.WeeWxIOError(e)
         # Python version 2.5 and earlier returns 'None', so it cannot be used
         # to test for completion.
-        if N is not None and N != len(data):
-           raise weewx.WeeWxIOError("Expected to write %d chars; sent %d instead" %
-                                        (len(data), N))
+        if n is not None and n != len(data):
+            raise weewx.WeeWxIOError("Expected to write %d chars; sent %d instead" %
+                                     (len(data), n))
 
     def read(self, bytes=8):
         """Read data from the inverter.
@@ -967,12 +970,10 @@ class AuroraInverter(object):
             logerr("  ***** %s" % e)
             logerr("  ***** Is there a competing process running??")
             raise
-            # re-raise as a weeWX error I/O error:
-            raise weewx.WeeWxIOError(e)
-        N = len(_buffer)
-        if N != bytes:
+        n = len(_buffer)
+        if n != bytes:
             raise weewx.WeeWxIOError("Expected to read %d bytes; got %d instead" %
-                                         (bytes, N))
+                                     (bytes, n))
         return _buffer
 
     def send_cmd_with_crc(self, command, payload=None, globall=0,
@@ -1000,7 +1001,7 @@ class AuroraInverter(object):
                          self.commands[command]['sub'], globall)
         elif payload is not None:
             # we have no sub-command, but we have a payload
-            command_t = (address, self.commands[command]['cmd']) +  tuple([ord(b) for b in payload])
+            command_t = (address, self.commands[command]['cmd']) + tuple([ord(b) for b in payload])
         else:
             # no sub-command or payload
             command_t = (address, self.commands[command]['cmd'])
@@ -1093,7 +1094,7 @@ class AuroraInverter(object):
             A two byte string containing the CRC.
         """
 
-        POLY = 0x8408
+        poly = 0x8408
         crc = 0xffff
 
         # if our input is nothing then that is simple
@@ -1111,8 +1112,8 @@ class AuroraInverter(object):
         # now calculate the CRC of our sequence of bytes
         for _byte in _bytes:
             for i in range(8):
-                if ((crc & 0x0001) ^ (_byte & 0x0001)):
-                    crc = ((crc >> 1) ^ POLY) & 0xffff
+                if (crc & 0x0001) ^ (_byte & 0x0001):
+                    crc = ((crc >> 1) ^ poly) & 0xffff
                 else:
                     crc >>= 1
                 _byte >>= 1
@@ -1137,9 +1138,9 @@ class AuroraInverter(object):
             logerr("Inverter response failed CRC check:")
             logerr("  ***** response=%s" % (format_byte_to_hex(buffer)))
             logerr("  *****     data=%s        CRC=%s  expected CRC=%s" %
-                       (format_byte_to_hex(data),
-                       format_byte_to_hex(crc_bytes),
-                       format_byte_to_hex(crc)))
+                   (format_byte_to_hex(data),
+                    format_byte_to_hex(crc_bytes),
+                    format_byte_to_hex(crc)))
             raise weewx.CRCError("Inverter response failed CRC check")
 
     @staticmethod
@@ -1172,12 +1173,12 @@ class AuroraInverter(object):
             A padded string of length size.
         """
 
-        PAD = ''.join(['\x00' for a in range(size)])
+        pad = ''.join(['\x00' for a in range(size)])
 
-        if size > len(PAD):
+        if size > len(pad):
             raise DataFormatError("pad: string to be padded must be <= %d characters in length" %
-                                      size)
-        return buf + PAD[:(size-len(buf))]
+                                  size)
+        return buf + pad[:(size-len(buf))]
 
     @staticmethod
     def _dec_state(v):
@@ -1546,6 +1547,7 @@ def format_byte_to_hex(bytes):
 # It is also valid to have a data attribute of None. In these cases the data
 # could not be decoded and the driver will handle this appropriately.
 
+
 class ResponseTuple(tuple):
 
     def __new__(cls, *args):
@@ -1587,7 +1589,6 @@ class ResponseTuple(tuple):
 if __name__ == '__main__':
 
     # python imports
-    import datetime
     import optparse
     import sys
     import time
