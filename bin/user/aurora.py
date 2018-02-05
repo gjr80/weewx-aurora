@@ -165,65 +165,73 @@ def loginf(msg):
 def logerr(msg):
     logmsg(syslog.LOG_ERR, msg)
 
-# define unit groups, formats and conversions for units used by the aurora
-# driver
+def define_units():
+    """Define any unit groups, formats and conversions used by the driver.
 
-# create groups for frequency and resistance
-weewx.units.USUnits['group_frequency'] = 'hertz'
-weewx.units.MetricUnits['group_frequency'] = 'hertz'
-weewx.units.MetricWXUnits['group_frequency'] = 'hertz'
-weewx.units.USUnits['group_resistance'] = 'ohm'
-weewx.units.MetricUnits['group_resistance'] = 'ohm'
-weewx.units.MetricWXUnits['group_resistance'] = 'ohm'
+        define unit groups, formats and conversions for units used by the aurora
+        driver
 
-# set default formats and labels for frequency and resistance
-weewx.units.default_unit_format_dict['hertz'] = '%.1f'
-weewx.units.default_unit_label_dict['hertz'] = ' Hz'
-weewx.units.default_unit_format_dict['ohm'] = '%.1f'
-weewx.units.default_unit_label_dict['ohm'] = ' ohm'
+    """
 
-# define conversion functions for resistance
-weewx.units.conversionDict['ohm'] = {'kohm': lambda x : x / 1000.0,
-                                     'Mohm': lambda x : x / 1000000.0}
-weewx.units.conversionDict['kohm'] = {'ohm': lambda x : x * 1000.0,
-                                      'Mohm': lambda x : x / 1000.0}
-weewx.units.conversionDict['Mohm'] = {'ohm': lambda x : x * 1000000.0,
-                                      'kohm': lambda x : x * 1000.0}
+    # create groups for frequency and resistance
+    weewx.units.USUnits['group_frequency'] = 'hertz'
+    weewx.units.MetricUnits['group_frequency'] = 'hertz'
+    weewx.units.MetricWXUnits['group_frequency'] = 'hertz'
+    weewx.units.USUnits['group_resistance'] = 'ohm'
+    weewx.units.MetricUnits['group_resistance'] = 'ohm'
+    weewx.units.MetricWXUnits['group_resistance'] = 'ohm'
 
-# assign database fields to groups
-weewx.units.obs_group_dict['string1Voltage'] = 'group_volt'
-weewx.units.obs_group_dict['string1Current'] = 'group_amp'
-weewx.units.obs_group_dict['string1Power'] = 'group_power'
-weewx.units.obs_group_dict['string2Voltage'] = 'group_volt'
-weewx.units.obs_group_dict['string2Current'] = 'group_amp'
-weewx.units.obs_group_dict['string2Power'] = 'group_power'
-weewx.units.obs_group_dict['gridVoltage'] = 'group_volt'
-weewx.units.obs_group_dict['gridCurrent'] = 'group_amp'
-weewx.units.obs_group_dict['gridPower'] = 'group_power'
-weewx.units.obs_group_dict['gridFrequency'] = 'group_frequency'
-weewx.units.obs_group_dict['efficiency'] = 'group_percent'
-weewx.units.obs_group_dict['inverterTemp'] = 'group_temperature'
-weewx.units.obs_group_dict['boosterTemp'] = 'group_temperature'
-weewx.units.obs_group_dict['bulkVoltage'] = 'group_volt'
-weewx.units.obs_group_dict['isoResistance'] = 'group_resistance'
-weewx.units.obs_group_dict['in1Power'] = 'group_power'
-weewx.units.obs_group_dict['in2Power'] = 'group_power'
-weewx.units.obs_group_dict['bulkmidVoltage'] = 'group_volt'
-weewx.units.obs_group_dict['bulkdcVoltage'] = 'group_volt'
-weewx.units.obs_group_dict['leakdcCurrent'] = 'group_amp'
-weewx.units.obs_group_dict['leakCurrent'] = 'group_amp'
-weewx.units.obs_group_dict['griddcVoltage'] = 'group_volt'
-weewx.units.obs_group_dict['gridavgVoltage'] = 'group_volt'
-weewx.units.obs_group_dict['gridnVoltage'] = 'group_volt'
-weewx.units.obs_group_dict['griddcFrequency'] = 'group_frequency'
-weewx.units.obs_group_dict['energy'] = 'group_energy'
+    # set default formats and labels for frequency and resistance
+    weewx.units.default_unit_format_dict['hertz'] = '%.1f'
+    weewx.units.default_unit_label_dict['hertz'] = ' Hz'
+    weewx.units.default_unit_format_dict['ohm'] = '%.1f'
+    weewx.units.default_unit_label_dict['ohm'] = ' ohm'
+
+    # define conversion functions for resistance
+    weewx.units.conversionDict['ohm'] = {'kohm': lambda x : x / 1000.0,
+                                         'Mohm': lambda x : x / 1000000.0}
+    weewx.units.conversionDict['kohm'] = {'ohm': lambda x : x * 1000.0,
+                                          'Mohm': lambda x : x / 1000.0}
+    weewx.units.conversionDict['Mohm'] = {'ohm': lambda x : x * 1000000.0,
+                                          'kohm': lambda x : x * 1000.0}
+
+    # assign database fields to groups
+    weewx.units.obs_group_dict['string1Voltage'] = 'group_volt'
+    weewx.units.obs_group_dict['string1Current'] = 'group_amp'
+    weewx.units.obs_group_dict['string1Power'] = 'group_power'
+    weewx.units.obs_group_dict['string2Voltage'] = 'group_volt'
+    weewx.units.obs_group_dict['string2Current'] = 'group_amp'
+    weewx.units.obs_group_dict['string2Power'] = 'group_power'
+    weewx.units.obs_group_dict['gridVoltage'] = 'group_volt'
+    weewx.units.obs_group_dict['gridCurrent'] = 'group_amp'
+    weewx.units.obs_group_dict['gridPower'] = 'group_power'
+    weewx.units.obs_group_dict['gridFrequency'] = 'group_frequency'
+    weewx.units.obs_group_dict['efficiency'] = 'group_percent'
+    weewx.units.obs_group_dict['inverterTemp'] = 'group_temperature'
+    weewx.units.obs_group_dict['boosterTemp'] = 'group_temperature'
+    weewx.units.obs_group_dict['bulkVoltage'] = 'group_volt'
+    weewx.units.obs_group_dict['isoResistance'] = 'group_resistance'
+    weewx.units.obs_group_dict['in1Power'] = 'group_power'
+    weewx.units.obs_group_dict['in2Power'] = 'group_power'
+    weewx.units.obs_group_dict['bulkmidVoltage'] = 'group_volt'
+    weewx.units.obs_group_dict['bulkdcVoltage'] = 'group_volt'
+    weewx.units.obs_group_dict['leakdcCurrent'] = 'group_amp'
+    weewx.units.obs_group_dict['leakCurrent'] = 'group_amp'
+    weewx.units.obs_group_dict['griddcVoltage'] = 'group_volt'
+    weewx.units.obs_group_dict['gridavgVoltage'] = 'group_volt'
+    weewx.units.obs_group_dict['gridnVoltage'] = 'group_volt'
+    weewx.units.obs_group_dict['griddcFrequency'] = 'group_frequency'
+    weewx.units.obs_group_dict['energy'] = 'group_energy'
 
 
 def loader(config_dict, engine):  # @UnusedVariable
+
+    define_units()
     return AuroraDriver(config_dict[DRIVER_NAME])
 
 
 def confeditor_loader():
+
     return AuroraConfEditor()
 
 
@@ -1595,6 +1603,7 @@ if __name__ == '__main__':
 
     # weeWX imports
     import weecfg
+    import weewx.units
 
     from weeutil.weeutil import timestamp_to_string
 
@@ -1635,6 +1644,8 @@ if __name__ == '__main__':
     config_path, config_dict = weecfg.read_config(options.config_path, args)
     print "Using configuration file %s" % config_path
 
+    # define custom units settings
+    define_units()
     # get a config dict for the inverter
     aurora_dict = config_dict.get('Aurora', None)
     # get an AuroraDriver object
