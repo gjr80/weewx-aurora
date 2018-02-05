@@ -554,8 +554,8 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
 
         # build a 'none' packet to use when the inverter is offline
         self.none_packet = {}
-        for src in self.manifest:
-            self.none_packet[src] = None
+        for field in AuroraDriver.SENSOR_LOOKUP:
+            self.none_packet[field] = None
 
     def openPort(self):
         """Open the connection to the inverter."""
