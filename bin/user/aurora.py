@@ -635,7 +635,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
 
         _packet = {}
         # iterate over each reading we need to get
-        for field, command in AuroraDriver.SENSOR_LOOKUP:
+        for field, command in AuroraDriver.SENSOR_LOOKUP.iteritems():
             # get the reading
             _response = self.do_cmd(command)
             # If the inverter is running set the running property and save the
