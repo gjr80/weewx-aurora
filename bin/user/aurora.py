@@ -17,9 +17,17 @@
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see http://www.gnu.org/licenses/.
 #
-# Version: 0.5.1                                        Date: 3 February 2018
+# Version: 0.6.0                                        Date: 5 February 2018
 #
 # Revision History
+#   5 February 2018     v0.6.0
+#       - sensor map is now a map to inverter data field to weeWX field rather
+#         than inverter data function to weeWX field name
+#       - removed option to use inverter time as loop packet dateTime field,
+#         dateTime field is now always set to weeWX machine system time
+#       - removed unused get_cumulated_energy() method from class AuroraDriver
+#       - week, month, year, partial and total energy inverter fields are now
+#         included in loop packets
 #   3 February 2018     v0.5.1
 #       - reworked install comments
 #   31 January 2018     v0.5.0
@@ -134,7 +142,7 @@ from weeutil.weeutil import option_as_list, to_bool
 
 # our name and version number
 DRIVER_NAME = 'Aurora'
-DRIVER_VERSION = '0.5.1'
+DRIVER_VERSION = '0.6.0'
 
 
 def logmsg(level, msg):
@@ -236,31 +244,69 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
     """Class representing connection to Aurora inverter."""
 
     # default sensor map
-    DEFAULT_SENSOR_MAP = {'timeDate': 'getTimeDate',
-                          'string1Voltage': 'getStr1V',
-                          'string1Current': 'getStr1C',
-                          'string1Power': 'getStr1P',
-                          'string2Voltage': 'getStr2V',
-                          'string2Current': 'getStr2C',
-                          'string2Power': 'getStr2P',
-                          'gridVoltage': 'getGridV',
-                          'gridCurrent': 'getGridC',
-                          'gridPower': 'getGridP',
-                          'gridFrequency': 'getFrequency',
-                          'inverterTemp': 'getInverterT',
-                          'boosterTemp': 'getBoosterT',
-                          'bulkVoltage': 'getBulkV',
-                          'isoResistance': 'getIsoR',
-                          'bulkmidVoltage': 'getBulkMidV',
-                          'bulkdcVoltage': 'getBulkDcV',
-                          'leakdcCurrent': 'getLeakDcC',
-                          'leakCurrent': 'getLeakC',
-                          'griddcVoltage': 'getGridDcV',
-                          'gridavgVoltage': 'getGridAvV',
-                          'gridnVoltage': 'getPeakP',
-                          'griddcFrequency': 'getGridDcFreq',
-                          'dayEnergy': 'getDayEnergy'
+    DEFAULT_SENSOR_MAP = {'inverterDateTime': 'inverterDateTime',
+                          'string1Voltage': 'str1V',
+                          'string1Current': 'str1C',
+                          'string1Power': 'str1P',
+                          'string2Voltage': 'str2V',
+                          'string2Current': 'str2C',
+                          'string2Power': 'str2P',
+                          'gridVoltage': 'gridV',
+                          'gridCurrent': 'gridC',
+                          'gridPower': 'gridP',
+                          'gridFrequency': 'frequency',
+                          'inverterTemp': 'inverterT',
+                          'boosterTemp': 'boosterT',
+                          'bulkVoltage': 'bulkV',
+                          'isoResistance': 'isoR',
+                          'bulkmidVoltage': 'bulkMidV',
+                          'bulkdcVoltage': 'bulkDcV',
+                          'leakdcCurrent': 'leakDcC',
+                          'leakCurrent': 'leakC',
+                          'griddcVoltage': 'gridDcV',
+                          'gridavgVoltage': 'gridAvV',
+                          'gridnVoltage': 'gridNV',
+                          'griddcFrequency': 'gridDcFreq',
+                          'dayEnergy': 'dayEnergy',
+                          'weekEnergy': 'weekEnergy',
+                          'monthEnergy': 'monthEnergy',
+                          'yearEnergy': 'yearEnergy',
+                          'totalEnergy': 'totalEnergy',
+                          'partialEnergy': 'partialEnergy',
                          }
+
+    # lookup table used to determine inverter command to be used for each raw
+    # data packet field
+    SENSOR_LOOKUP = {'inverterDateTime': 'getTimeDate',
+                     'str1V': 'getStr1V',
+                     'str1C': 'getStr1C',
+                     'str1P': 'getStr1P',
+                     'str2V': 'getStr2V',
+                     'str2C': 'getStr2C',
+                     'str2P': 'getStr2P',
+                     'gridV': 'getGridV',
+                     'gridC': 'getGridC',
+                     'gridP': 'getGridP',
+                     'frequency': 'getFrequency',
+                     'inverterT': 'getInverterT',
+                     'boosterT': 'getBoosterT',
+                     'bulkV': 'getBulkV',
+                     'isoR': 'getIsoR',
+                     'bulkMidV': 'getBulkMidV',
+                     'bulkDcV': 'getBulkDcV',
+                     'leakDcC': 'getLeakDcC',
+                     'leakC': 'getLeakC',
+                     'gridDcV': 'getGridDcV',
+                     'gridAvV': 'getGridAvV',
+                     'gridNV': 'getGridNV',
+                     'gridDcFreq': 'getGridDcFreq',
+                     'dayEnergy': 'getDayEnergy',
+                     'weekEnergy': 'getWeekEnergy',
+                     'monthEnergy': 'getMonthEnergy',
+                     'yearEnergy': 'getYearEnergy',
+                     'totalEnergy': 'getTotalEnergy',
+                     'partialEnergy': 'getPartialEnergy'
+                    }
 
     # transmission state code map
     TRANSMISSION = {0: 'Everything is OK',
@@ -483,11 +529,6 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                    (self.address, self.polling_interval))
         logdbg('   max_command_tries %d max_loop_tries %d' %
                    (self.max_command_tries, self.max_loop_tries))
-        self.use_inverter_time = to_bool(aurora_dict.get('use_inverter_time', False))
-        if self.use_inverter_time:
-            logdbg('   inverter time will be used to timestamp data')
-        else:
-            logdbg('   weeWX system time will be used to timestamp data')
 
         # get an AuroraInverter object
         self.inverter = AuroraInverter(port,
@@ -504,10 +545,11 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         # initialise last energy value
         self.last_energy = None
 
-        # Build the manifest of readings to be included in the loop packet.
-        # Build the Aurora reading to loop packet field map.
-        (self.field_map, self.manifest) = self._build_map_manifest(aurora_dict)
-        loginf('sensor_map=%s' % (self.field_map,))
+        # get the sensor map
+        self.sensor_map = inverter_dict.get('sensor_map',
+                                            AuroraDriver.DEFAULT_SENSOR_MAP)
+        loginf('sensor_map=%s' % (self.sensor_map,))
+
         # build a 'none' packet to use when the inverter is offline
         self.none_packet = {}
         for src in self.manifest:
@@ -555,15 +597,8 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                     # add in/set fields that require special consideration
                     if packet:
 
-                        # dateTime - either be system time or inverter time
-                        if not self.use_inverter_time:
-                            # we are NOT using the inverter timestamp so set
-                            # the packet timestamp to the current system time
-                            packet['dateTime'] = _ts
-                        else:
-                            # we ARE using the inverter timestamp so set the
-                            # packet timestamp to the current inverter time
-                            packet['dateTime'] = packet['timeDate']
+                        # dateTime
+                        packet['dateTime'] = _ts
 
                         # usUnits - set to METRIC
                         packet['usUnits'] = weewx.METRIC
@@ -572,9 +607,13 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                         # dayEnergy is cumulative by day but we need
                         # incremental values so we need to calculate it based
                         # on the last cumulative value
-                        packet['energy'] = self.calculate_energy(packet['dayEnergy'],
-                                                                 self.last_energy)
-                        self.last_energy = packet['dayEnergy'] if 'dayEnergy' in packet else None
+                        if 'dayEnergy' in packet:
+                            packet['energy'] = self.calculate_energy(packet['dayEnergy'],
+                                                                     self.last_energy)
+                            self.last_energy = packet['dayEnergy']
+                        else:
+                            packet['energy'] = None
+                            self.last_energy = None
 
                         logdbg2("genLoopPackets: received loop packet: %s" %
                                     packet)
@@ -594,16 +633,16 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
 
         _packet = {}
         # iterate over each reading we need to get
-        for reading in self.manifest:
+        for field, command in AuroraDrive.SENSOR_LOOKUP:
             # get the reading
-            _response = self.do_cmd(reading)
+            _response = self.do_cmd(command)
             # If the inverter is running set the running property and save the
             # data. If the inverter is asleep set the running property only,
             # there will be no data.
             if _response.global_state == 6:
                 # inverter is running
                 self.running = True
-                _packet[reading] = _response.data
+                _packet[field] = _response.data
             else:
                 # inverter is asleep
                 self.running = False
@@ -623,7 +662,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
 
         # map raw packet readings to loop packet fields using the field map
         _packet = {}
-        for dest, src in self.field_map.iteritems():
+        for dest, src in self.sensor_map.iteritems():
             if src in raw_packet:
                 _packet[dest] = raw_packet[src]
                 # apply any special processing that may be required
@@ -634,8 +673,8 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                     except TypeError:
                         # field is not numeric so leave it
                         pass
-            else:
-                _packet[dest] = None
+#            else:
+#                _packet[dest] = None
         return _packet
 
     def do_cmd(self, command, payload=None, globall=0):
@@ -736,44 +775,6 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                            (_response.global_state,
                             AuroraDriver.GLOBAL[response_rt.global_state]))
 
-    def get_cumulated_energy(self, period=None):
-        """Get 'cumulated' energy readings.
-
-        Returns a dict with value for one or more periods. Valid dict keys are:
-            'day'
-            'week'
-            'month'
-            'year'
-            'total'
-            'partial'
-
-        Input:
-            period: Specify a single period for which cumulated energy is
-                    required. If None or omitted cumulated values for all
-                    periods will be returned. String, must be one of the above
-                    dict keys, may be None. Default is None.
-        Returns:
-            Dict of requested cumulated energy values. If an invalid period is
-            passed in then None is returned.
-        """
-
-        MANIFEST = {'day': 'dayEnergy',
-                    'week': 'weekEnergy',
-                    'month': 'monthEnergy',
-                    'year': 'yearEnergy',
-                    'total': 'totalEnergy',
-                    'partial': 'partialEnergy'}
-
-        _energy = {}
-        if period is None:
-            for _period, _reading in MANIFEST.iteritems():
-                _energy[_period] = self.do_cmd(_reading).data
-        elif period in MANIFEST:
-            _energy[period] = self.do_cmd(period).data
-        else:
-            _energy = None
-        return _energy
-
     def get_last_alarms(self):
         """Get the last four alarms."""
 
@@ -834,37 +835,6 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
             if newtotal >= oldtotal:
                 delta = newtotal - oldtotal
         return delta
-
-    def _build_map_manifest(self, inverter_dict):
-        """Build a field map and command manifest.
-
-        Build a dict mapping Aurora readings to loop packet fields. Also builds
-        a dict of commands to be used to obtain raw loop data from the
-        inverter.
-
-        Input:
-            inverter_dict: An inverter config dict
-
-        Returns:
-            Tuple consisting of (field_map, manifest) where:
-
-            field_map:  A is a dict mapping Aurora readings to loop packet
-                        fields.
-            manifest:   A dict of inverter readings and their associated
-                        command parameters to be used as the raw data used as
-                        the basis for a loop packet.
-        """
-
-        _manifest = []
-        _field_map = {}
-        _field_map_config = inverter_dict.get('sensor_map', AuroraDriver.DEFAULT_SENSOR_MAP)
-        for dest, src in _field_map_config.iteritems():
-            if src in self.inverter.commands:
-                _manifest.append(src)
-                _field_map[dest] = src
-            else:
-                logdbg("Invalid inverter data field '%s' specified in config file. Field ignored." % src)
-        return _field_map, _manifest
 
 
 # ============================================================================
