@@ -17,9 +17,13 @@
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see http://www.gnu.org/licenses/.
 #
-# Version: 0.5.1                                      Date: 3 February 2018
+# Version: 0.6.0                                        Date: ?? February 2019
 #
 # Revision History
+#   ?? February 2019    v0.6.0
+#       - bumped version number only
+#   22 December 2018    v0.5.2
+#       - bumped version number only
 #   3 February 2018     v0.5.1
 #       - bumped version number only
 #   31 January 2018     v0.5.0
@@ -51,31 +55,33 @@ AURORA_SCHEMA_VERSION = '0.5.1'
 
 # Define schema for archive table
 aurora_schema = [
-    ('dateTime',       'INTEGER NOT NULL UNIQUE PRIMARY KEY'),
-    ('usUnits',        'INTEGER NOT NULL'),
-    ('interval',       'INTEGER NOT NULL'),
-    ('string1Voltage', 'REAL'),    ('string1Current', 'REAL'),
-    ('string1Power',   'REAL'),
-    ('string2Voltage', 'REAL'),
-    ('string2Current', 'REAL'),
-    ('string2Power',   'REAL'),    ('gridVoltage',    'REAL'),
-    ('gridCurrent',    'REAL'),
-    ('gridPower',      'REAL'),
-    ('gridFrequency',  'REAL'),
-    ('efficiency',     'REAL'),
-    ('inverterTemp',   'REAL'),
-    ('boosterTemp',    'REAL'),
-    ('bulkVoltage',    'REAL'),
-    ('isoResistance',  'REAL'),
-    ('in1Power',       'REAL'),
-    ('in2Power',       'REAL'),
-    ('bulkmidVoltage', 'REAL'),
-    ('bulkdcVoltage',  'REAL'),
-    ('leakdcCurrent',  'REAL'),
-    ('leakCurrent',    'REAL'),
-    ('griddcVoltage',  'REAL'),
-    ('gridavgVoltage', 'REAL'),
-    ('gridnVoltage',   'REAL'),
-    ('griddcFrequency','REAL'),
-    ('energy',         'REAL')
+    ('dateTime',        'INTEGER NOT NULL UNIQUE PRIMARY KEY'),
+    ('usUnits',         'INTEGER NOT NULL'),
+    ('interval',        'INTEGER NOT NULL'),
+    ('string1Voltage',  'REAL'),
+    ('string1Current',  'REAL'),
+    ('string1Power',    'REAL'),
+    ('string2Voltage',  'REAL'),
+    ('string2Current',  'REAL'),
+    ('string2Power',    'REAL'),
+    ('gridVoltage',     'REAL'),
+    ('gridCurrent',     'REAL'),
+    ('gridPower',       'REAL'),
+    ('gridFrequency',   'REAL'),
+    ('efficiency',      'REAL'),
+    ('inverterTemp',    'REAL'),
+    ('boosterTemp',     'REAL'),
+    ('bulkVoltage',     'REAL'),
+    ('isoResistance',   'REAL'),
+    ('in1Power',        'REAL'),
+    ('in2Power',        'REAL'),
+    ('bulkmidVoltage',  'REAL'),
+    ('bulkdcVoltage',   'REAL'),
+    ('leakdcCurrent',   'REAL'),
+    ('leakCurrent',     'REAL'),
+    ('griddcVoltage',   'REAL'),
+    ('gridavgVoltage',  'REAL'),
+    ('gridnVoltage',    'REAL'),
+    ('griddcFrequency', 'REAL'),
+    ('energy',          'REAL')
     ]
