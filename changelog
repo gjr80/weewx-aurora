@@ -1,3 +1,8 @@
+v0.6.0
+*   ported to Python 3
+v0.5.2
+*   implemented port cycling after 2 failures to obtain a response from the
+    inverter
 v0.5.1
 *   updated readme
 *   updated aurora.py install comments
