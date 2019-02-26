@@ -2,7 +2,7 @@
 #
 # A weeWX driver for Power One Aurora inverters.
 #
-# Copyright (C) 2016 Gary Roderick                  gjroderick<at>gmail.com
+# Copyright (C) 2016-18 Gary Roderick                  gjroderick<at>gmail.com
 #
 # This program is free software: you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free
@@ -17,9 +17,12 @@
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see http://www.gnu.org/licenses/.
 #
-# Version: 0.5.1                                        Date: 3 February 2018
+# Version: 0.5.2                                        Date: 22 December 2018
 #
 # Revision History
+#   22 December 2018    v0.5.2
+#       - implemented port cycling after 2 failures to obtain a response from
+#         the inverter
 #   3 February 2018     v0.5.1
 #       - reworked install comments
 #   31 January 2018     v0.5.0
@@ -104,7 +107,7 @@ options as required:
     - under [Station] set station_type = Aurora
     - under [StdArchive] ensure record_generation = software
 
-4.  Stop then start weeWX.
+5.  Stop then start weeWX.
 
 Standalone testing
 
@@ -134,7 +137,7 @@ from weeutil.weeutil import option_as_list, to_bool
 
 # our name and version number
 DRIVER_NAME = 'Aurora'
-DRIVER_VERSION = '0.5.1'
+DRIVER_VERSION = '0.5.2'
 
 
 def logmsg(level, msg):
@@ -1075,9 +1078,23 @@ class AuroraInverter(object):
                 continue
             except weewx.WeeWxIOError:
                 pass
+            # Sometimes we seem to get stuck in continuous IO errors. Cycling
+            # the serial port after the second IO error usually fixes the
+            # problem.
             if count + 1 < max_tries:
-                logdbg2("send_cmd_with_crc: try #%d unsuccessful... sleeping" % (count + 1,))
-                time.sleep(self.wait_before_retry)
+                # 1st or 2nd attempt
+                if count + 2 == max_tries:
+                    # the 2nd attempt failed so cycle the port
+                    logdbg2("send_cmd_with_crc: try #%d unsuccessful... cycling port" % (count + 1,))
+                    # close the port, wait 0.2 sec then open the port
+                    self.close_port()
+                    time.sleep(0.2)
+                    self.open_port()
+                    # log that the port has been cycled
+                    logdbg2("send_cmd_with_crc: port cycle complete.")
+                else:
+                    logdbg2("send_cmd_with_crc: try #%d unsuccessful... sleeping" % (count + 1,))
+                    time.sleep(self.wait_before_retry)
                 logdbg2("send_cmd_with_crc: retrying")
             else:
                 logdbg2("send_cmd_with_crc: try #%d unsuccessful" % (count + 1,))
