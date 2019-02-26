@@ -20,7 +20,7 @@ The Aurora driver extension consists of:
 Pre-Requisites
 
 The Aurora driver requires:
--   weeWX v3.7.0 or greater, and
+-   weeWX v4.0.0 or greater, and
 -   the python-serial package
 
 

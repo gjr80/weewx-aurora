@@ -29,7 +29,7 @@ import weewx
 from distutils.version import StrictVersion
 from setup import ExtensionInstaller
 
-REQUIRED_VERSION = "3.7.0"
+REQUIRED_VERSION = "4.0.0"
 AURORA_VERSION = "0.6.0"
 
 
