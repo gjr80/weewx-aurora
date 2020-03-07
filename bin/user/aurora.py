@@ -3,7 +3,7 @@ aurora.py
 
 A WeeWX driver for Power One Aurora inverters.
 
-Copyright (C) 2016-2019 Gary Roderick                  gjroderick<at>gmail.com
+Copyright (C) 2016-2020 Gary Roderick                  gjroderick<at>gmail.com
 
 This program is free software: you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -132,8 +132,7 @@ import struct
 import syslog
 import time
 
-
-# weeWX imports
+# WeeWX imports
 import weewx.drivers
 import weewx.units
 
@@ -530,7 +529,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         if self.use_inverter_time:
             logdbg('   inverter time will be used to timestamp data')
         else:
-            logdbg('   weeWX system time will be used to timestamp data')
+            logdbg('   WeeWX system time will be used to timestamp data')
 
         # get an AuroraInverter object
         self.inverter = AuroraInverter(port,
@@ -624,7 +623,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                     logdbg2("genLoopPackets: Sleeping")
                     while time.time() < _ts + self.polling_interval:
                         time.sleep(0.2)
-                except IOError, e:
+                except IOError as e:
                     logerr("LOOP try #%d; error: %s" % (count + 1, e))
                     break
         logerr("LOOP max tries (%d) exceeded." % self.max_loop_tries)
@@ -652,14 +651,14 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         return _packet
 
     def process_raw_packet(self, raw_packet):
-        """Create a limited weeWX loop packet from a raw loop data.
+        """Create a limited WeeWX loop packet from a raw loop data.
 
         Input:
             raw_packet: A dict holding unmapped raw data retrieved from the
                         inverter.
 
         Returns:
-            A limited weeWX loop packet of mapped raw inverter data.
+            A limited WeeWX loop packet of mapped raw inverter data.
         """
 
         # map raw packet readings to loop packet fields using the field map
@@ -705,8 +704,8 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
     def getTime(self):
         """Get inverter system time and return as an epoch timestamp.
 
-        During startup weeWX uses the 'console' time if available. The way the
-        driver tells weeWX the 'console' time is not available is by raising a
+        During startup WeeWX uses the 'console' time if available. The way the
+        driver tells WeeWX the 'console' time is not available is by raising a
         NotImplementedError error when getTime is called. This is what is
         normally done for stations that do not keep track of time. In the case
         of the Aurora inverter, when it is asleep we cannot get the time so in
@@ -730,7 +729,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
     def setTime(self):
         """Set inverter system time.
 
-        The weeWX StdTimeSync service will periodically check the inverters
+        The WeeWX StdTimeSync service will periodically check the inverters
         internal clock and use setTime() to adjust the inverters clock if
         required. As the inverters clock cannot be read or set when the
         inverter is asleep, setTime() will take one of two actions. If the
@@ -1008,10 +1007,10 @@ class AuroraInverter(object):
 
         try:
             n = self.serial_port.write(data)
-        except serial.serialutil.SerialException, e:
+        except serial.serialutil.SerialException as e:
             logerr("SerialException on write.")
             logerr("  ***** %s" % e)
-            # re-raise as a weeWX error I/O error:
+            # re-raise as a WeeWX error I/O error:
             raise weewx.WeeWxIOError(e)
         # Python version 2.5 and earlier returns 'None', so it cannot be used
         # to test for completion.
@@ -1035,12 +1034,11 @@ class AuroraInverter(object):
 
         try:
             _buffer = self.serial_port.read(bytes)
-        except serial.serialutil.SerialException, e:
+        except serial.serialutil.SerialException as e:
             logerr("SerialException on read.")
             logerr("  ***** %s" % e)
             logerr("  ***** Is there a competing process running??")
-            raise
-            # re-raise as a weeWX error I/O error:
+            # re-raise as a WeeWX error I/O error:
             raise weewx.WeeWxIOError(e)
         n = len(_buffer)
         if n != bytes:
@@ -1429,7 +1427,7 @@ class AuroraInverter(object):
         Refer to the Aurora PV Inverter Series Communication Protocol rel 4.7
         command 70.
 
-        Since weeWX uses epoch timestamps the calculated date-time value is
+        Since WeeWX uses epoch timestamps the calculated date-time value is
         converted to an epoch timestamp before being returned in a
         ResponseTuple.
 
@@ -1659,8 +1657,8 @@ class ResponseTuple(tuple):
 #                          Main Entry for Testing
 # ============================================================================
 
-# Define a main entry point for basic testing without the weeWX engine and
-# service overhead. To invoke this driver without weeWX:
+# Define a main entry point for basic testing without the WeeWX engine and
+# service overhead. To invoke this driver without WeeWX:
 #
 # $ sudo PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/aurora.py --option
 #
@@ -1678,13 +1676,11 @@ class ResponseTuple(tuple):
 if __name__ == '__main__':
 
     # python imports
-    # TODO. Is this import required
-    import datetime
     import optparse
     import sys
     import time
 
-    # weeWX imports
+    # WeeWX imports
     import weecfg
     import weewx.units
 
@@ -1742,7 +1738,7 @@ if __name__ == '__main__':
                 print("LOOP:  ", timestamp_to_string(packet['dateTime']), sort(packet))
     elif options.status:
         response_rt = inverter.do_cmd('getState')
-        print
+        print()
         print("%s Status:" % inverter.model)
         if response_rt.transmission_state is not None:
             print("%22s: %d (%s)" % ("Transmission state",
@@ -1783,7 +1779,7 @@ if __name__ == '__main__':
             print("       Alarm state: None (---)")
 
     elif options.info:
-        print
+        print()
         print("%s Information:" % inverter.model)
         print("%21s: %s" % ("Part Number", inverter.part_number))
         print("%21s: %s" % ("Version", inverter.version))
@@ -1791,7 +1787,7 @@ if __name__ == '__main__':
         print("%21s: %s" % ("Manufacture Date", inverter.manufacture_date))
         print("%21s: %s" % ("Firmware Release", inverter.firmware_rel))
     elif options.readings:
-        print
+        print()
         print("%s Current Readings:" % inverter.model)
         print("-----------------------------------------------")
         print("Grid:")
@@ -1826,33 +1822,33 @@ if __name__ == '__main__':
         print("%29s: %sWh" % ("This Year's Energy", inverter.do_cmd('getYearEnergy').data))
         print("%29s: %sWh" % ("Partial Energy", inverter.do_cmd('getPartialEnergy').data))
         print("%29s: %sWh" % ("Lifetime Energy", inverter.do_cmd('getTotalEnergy').data))
-        print
+        print()
         print("%29s: %sV" % ('Bulk Voltage', inverter.do_cmd('getBulkV').data))
         print("%29s: %sV" % ('Bulk DC Voltage', inverter.do_cmd('getBulkDcV').data))
         print("%29s: %sV" % ('Bulk Mid Voltage', inverter.do_cmd('getBulkMidV').data))
-        print
+        print()
         print("%29s: %sMOhms" % ('Insulation Resistance', inverter.do_cmd('getIsoR').data))
-        print
+        print()
         print("%29s: %sA" % ('Leakage Current(Inverter)', inverter.do_cmd('getLeakC').data))
         print("%29s: %sA" % ('Leakage Current(Booster)', inverter.do_cmd('getLeakDcC').data))
 
     elif options.get_time:
         inverter_ts = inverter.getTime()
         _error = inverter_ts - time.time()
-        print
+        print()
         print("Inverter date-time is %s" % (timestamp_to_string(inverter_ts)))
         print("    Clock error is %.3f seconds (positive is fast)" % _error)
     elif options.set_time:
         inverter_ts = inverter.getTime()
         _error = inverter_ts - time.time()
-        print
+        print()
         print("Current inverter date-time is %s" % (timestamp_to_string(inverter_ts)))
         print("    Clock error is %.3f seconds (positive is fast)" % _error)
-        print
+        print()
         print("Setting time...")
         inverter.setTime()
         inverter_ts = inverter.getTime()
         _error = inverter_ts - time.time()
-        print
+        print()
         print("Updated inverter date-time is %s" % (timestamp_to_string(inverter_ts)))
         print("    Clock error is %.3f seconds (positive is fast)" % _error)
