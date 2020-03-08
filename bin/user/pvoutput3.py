@@ -388,6 +388,7 @@ class PVOutputThread(weewx.restx.RESTThread):
 
         return _datadict
 
+#TODO. Decode PVOutput OK 200 response
     def post_with_retries(self, request, payload=None):
         """Post a request, retrying if necessary and returning a response.
 
@@ -508,8 +509,10 @@ class PVOutputThread(weewx.restx.RESTThread):
         if weewx.debug >= 2:
             log.debug("pvoutput: %s: response: %s" % (self.protocol_name,
                                                       _response.read()))
+        #TODO. Fix thi sproperly
+        a = _response.read().decode()
         # return a list of dicts
-        return _to_dict(_response.read(), GETSYSTEM_FIELDS, single_dict=True)
+        return _to_dict(a, GETSYSTEM_FIELDS, single_dict=True)
 
     def skip_this_post(self, time_ts):
         """Determine whether a post is to be skipped or not.
@@ -744,6 +747,9 @@ class PVOutputAPI(object):
         # submit the request to the API
         _response = self.request_with_retries(self.SERVICE_SCRIPT['getstatus'],
                                               params)
+        # TODO. check this, could it go in self.request_with_retries()
+        # encode as utf-8
+        _response = _response.encode('utf-8')
         # return our result as a list of dicts
         if params['h'] == 1:
             return _to_dict(_response, GETSTATUS_HISTORY_FIELDS)
@@ -965,6 +971,9 @@ class PVOutputAPI(object):
         # submit the request to the API
         _response = self.request_with_retries(self.SERVICE_SCRIPT['getsystem'],
                                               params)
+        # TODO. check this, could it go in self.request_with_retries()
+        # encode as utf-8
+        _response = _response.encode('utf-8')
         # return a list of dicts
         return _to_dict(_response, GETSYSTEM_FIELDS, single_dict=True)
 

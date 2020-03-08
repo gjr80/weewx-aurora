@@ -17,9 +17,11 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see http://www.gnu.org/licenses/.
 
-Version: 0.5.2                                        Date: 22 December 2018
+Version: 0.6.0                                        Date: 8 March 2020
 
 Revision History
+    8 March 2020        v0.6.0
+        - now WeeWX 4.0 python2/3 compatible
     22 December 2018    v0.5.2
         - implemented port cycling after 2 failures to obtain a response from
           the inverter
@@ -144,7 +146,7 @@ log = logging.getLogger(__name__)
 
 # our name and version number
 DRIVER_NAME = 'Aurora'
-DRIVER_VERSION = '0.5.2'
+DRIVER_VERSION = '0.6.0a1'
 
 
 # define unit groups, formats and conversions for units used by the aurora

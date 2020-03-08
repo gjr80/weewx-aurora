@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see http://www.gnu.org/licenses/.
 #
-# Version: 0.6.0                                        Date: ?? February 2019
+# Version: 0.6.0                                        Date: 8 March 2020
 #
 # Revision History
 #   ?? February 2019    v0.6.0
@@ -51,7 +51,7 @@
 # primary key indexes (type "dateTime").
 # ============================================================================
 #
-AURORA_SCHEMA_VERSION = '0.5.1'
+AURORA_SCHEMA_VERSION = '0.6.0a1'
 
 # Define schema for archive table
 aurora_schema = [
