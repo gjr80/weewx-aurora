@@ -11,9 +11,13 @@
 #
 #                     Installer for Aurora inverter driver
 #
-# Version: 0.5.1                                    Date: 3 February 2018
+# Version: 0.6.0                                    Date: ?? February 2019
 #
 # Revision History
+#   ?? February 2019    v0.6.0
+#       - minor formatting changes
+#   22 December 2018    v0.5.2
+#       - bumped version number only
 #   3 February 2018     v0.5.1
 #       - bumped version number only
 #   31 January 2018     v0.5.0
@@ -25,11 +29,13 @@ import weewx
 from distutils.version import StrictVersion
 from setup import ExtensionInstaller
 
-REQUIRED_VERSION = "3.7.0"
-AURORA_VERSION = "0.5.1"
+REQUIRED_VERSION = "4.0.0"
+AURORA_VERSION = "0.6.0"
+
 
 def loader():
     return AuroraInstaller()
+
 
 class AuroraInstaller(ExtensionInstaller):
     def __init__(self):
