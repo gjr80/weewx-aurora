@@ -979,8 +979,8 @@ class AuroraInverter(object):
 
         try:
             # this will cancel any pending loop:
-            self.write('\n')
-        except serial.SerialTimeoutException:
+            self.write(b'\n')
+        except weewx.WeeWxIOError:
             pass
         self.serial_port.close()
 
