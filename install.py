@@ -1,28 +1,27 @@
-#
-# This program is free software; you can redistribute it and/or modify it under
-# the terms of the GNU General Public License as published by the Free Software
-# Foundation; either version 2 of the License, or (at your option) any later
-# version.
-#
-# This program is distributed in the hope that it will be useful, but WITHOUT
-# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
-# details.
-#
-#                     Installer for Aurora inverter driver
-#
-# Version: 0.6.0                                    Date: ?? February 2019
-#
-# Revision History
-#   ?? February 2019    v0.6.0
-#       - minor formatting changes
-#   22 December 2018    v0.5.2
-#       - bumped version number only
-#   3 February 2018     v0.5.1
-#       - bumped version number only
-#   31 January 2018     v0.5.0
-#       - initial implementation as an extension
-#
+"""
+This program is free software; you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+
+                     Installer for Aurora inverter driver
+
+Version: 0.6.0                                      Date: 9 March 2020
+
+Revision History
+    9 March 2020        v0.6.0
+        - minor formatting changes
+    22 December 2018    v0.5.2
+        - bumped version number only
+    3 February 2018     v0.5.1
+        - bumped version number only
+    31 January 2018     v0.5.0
+        - initial implementation as an extension
+"""
 
 import weewx
 
@@ -47,7 +46,7 @@ class AuroraInstaller(ExtensionInstaller):
         super(AuroraInstaller, self).__init__(
             version=AURORA_VERSION,
             name='aurora',
-            description='weeWX driver for Power One Aurora inverters.',
+            description='WeeWX driver for Power One Aurora inverters.',
             author="Gary Roderick",
             author_email="gjroderick@gmail.com",
             files=[('bin/user', ['bin/user/aurora.py', 'bin/user/aurora_schema.py'])]
