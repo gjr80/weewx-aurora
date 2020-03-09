@@ -17,10 +17,10 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see http://www.gnu.org/licenses/.
 
-Version: 0.6.0                                        Date: 8 March 2020
+Version: 0.6.0                                        Date: 9 March 2020
 
 Revision History
-    8 March 2020        v0.6.0
+    9 March 2020        v0.6.0
         - now WeeWX 4.0 python2/3 compatible
     22 December 2018    v0.5.2
         - implemented port cycling after 2 failures to obtain a response from
@@ -126,14 +126,15 @@ The options can be selected using:
 """
 
 
-
-from six import iteritems
-
+# Python imports
 import logging
 import serial
 import struct
 import syslog
 import time
+
+# Python 2/3 compatibility shims
+from six import iteritems
 
 # WeeWX imports
 import weewx.drivers
@@ -146,7 +147,7 @@ log = logging.getLogger(__name__)
 
 # our name and version number
 DRIVER_NAME = 'Aurora'
-DRIVER_VERSION = '0.6.0a1'
+DRIVER_VERSION = '0.6.0'
 
 
 # define unit groups, formats and conversions for units used by the aurora
@@ -977,9 +978,9 @@ class AuroraInverter(object):
         """Close a serial port."""
 
         try:
-            # This will cancel any pending loop:
+            # this will cancel any pending loop:
             self.write('\n')
-        except:
+        except serial.SerialTimeoutException:
             pass
         self.serial_port.close()
 
@@ -1569,7 +1570,8 @@ class AuroraConfEditor(weewx.drivers.AbstractConfEditor):
                 'address': address
                 }
 
-    def modify_config(self, config_dict):
+    @staticmethod
+    def modify_config(config_dict):
 
         print("""Setting record_generation to software.""")
         config_dict['StdArchive']['record_generation'] = 'software'
@@ -1738,39 +1740,39 @@ if __name__ == '__main__':
         print(("%s Status:" % inverter.model))
         if response_rt.transmission_state is not None:
             print(("%22s: %d (%s)" % ("Transmission state",
-                                     response_rt.transmission_state,
-                                     AuroraDriver.TRANSMISSION[response_rt.transmission_state])))
+                                      response_rt.transmission_state,
+                                      AuroraDriver.TRANSMISSION[response_rt.transmission_state])))
         else:
             print("Transmission state: None (---)")
         if response_rt.global_state is not None:
             print(("%22s: %d (%s)" % ("Global state",
-                                     response_rt.global_state,
-                                     AuroraDriver.GLOBAL[response_rt.global_state])))
+                                      response_rt.global_state,
+                                      AuroraDriver.GLOBAL[response_rt.global_state])))
         else:
             print("      Global state: None (---)")
         if response_rt.data is not None and response_rt.data[0] is not None:
             print(("%22s: %d (%s)" % ("Inverter state",
-                                     response_rt.data[0],
-                                     AuroraDriver.INVERTER[response_rt.data[0]])))
+                                      response_rt.data[0],
+                                      AuroraDriver.INVERTER[response_rt.data[0]])))
         else:
             print("    Inverter state: None (---)")
         if response_rt.data is not None and response_rt.data[1] is not None:
             print(("%22s: %d (%s)" % ("DcDc1 state",
-                                     response_rt.data[1],
-                                     AuroraDriver.DCDC[response_rt.data[1]])))
+                                      response_rt.data[1],
+                                      AuroraDriver.DCDC[response_rt.data[1]])))
         else:
             print("       DcDc1 state: None (---)")
         if response_rt.data is not None and response_rt.data[2] is not None:
             print(("%22s: %d (%s)" % ("DcDc2 state",
-                                     response_rt.data[2],
-                                     AuroraDriver.DCDC[response_rt.data[2]])))
+                                      response_rt.data[2],
+                                      AuroraDriver.DCDC[response_rt.data[2]])))
         else:
             print("       DcDc2 state: None (---)")
         if response_rt.data is not None and response_rt.data[3] is not None:
             print(("%22s: %d (%s)[%s]" % ("Alarm state",
-                                         response_rt.data[3],
-                                         AuroraDriver.ALARM[response_rt.data[3]]['description'],
-                                         AuroraDriver.ALARM[response_rt.data[3]]['code'])))
+                                          response_rt.data[3],
+                                          AuroraDriver.ALARM[response_rt.data[3]]['description'],
+                                          AuroraDriver.ALARM[response_rt.data[3]]['code'])))
         else:
             print("       Alarm state: None (---)")
 

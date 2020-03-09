@@ -100,9 +100,8 @@ To use:
     archive period.
 """
 
-
+# Python imports
 import datetime
-import http.client
 import logging
 import socket
 import sys
@@ -111,8 +110,10 @@ import time
 # Python 2/3 compatibility shims
 from six.moves import queue
 from six.moves import urllib
+from six.moves import http_client
 
 # WeeWX imports
+import weedb
 import weewx.restx
 import weewx.units
 from weeutil.weeutil import timestamp_to_string, startOfDay
@@ -340,11 +341,12 @@ class PVOutputThread(weewx.restx.RESTThread):
         # add our headers, in this case sid and api_key
         _request.add_header('X-Pvoutput-Apikey', self.api_key)
         _request.add_header('X-Pvoutput-SystemId', self.sid)
-        response = self.post_with_retries(_request, urllib.parse.urlencode(params))
+        decoded_response = self.post_with_retries(_request,
+                                                  urllib.parse.urlencode(params))
         # if debug >= 2 then log some details of the response
         if weewx.debug >= 2:
             log.debug("%s: response: %s" % (self.protocol_name,
-                                            response.read()))
+                                            decoded_response))
 
     def get_record(self, record, dbmanager):
         """Augment record data with additional data derived from the archive.
@@ -416,35 +418,34 @@ class PVOutputThread(weewx.restx.RESTThread):
                 # Do a single post. The function post_request() can be
                 # specialized by a RESTful service to catch any unusual
                 # exceptions.
-                w = self.post_request(request, payload)
-                # TODO. Decode PVOutput OK 200 response
+                response = self.post_request(request, payload)
                 # Get charset used so we can decode the stream correctly.
                 # Unfortunately the way to get the charset depends on whether
                 # we are running under python2 or python3. Assume python3 but be
                 # prepared to catch the error if python2.
                 try:
-                    char_set = w.headers.get_content_charset()
+                    char_set = response.headers.get_content_charset()
                 except AttributeError:
                     # must be python2
-                    char_set = w.headers.getparam('charset')
+                    char_set = response.headers.getparam('charset')
                 # now get the response decoding it appropriately
-                _response = w.read().decode(char_set)
-                w.close()
+                decoded_response = response.read().decode(char_set)
                 # now look at the response code
-                if 200 <= _response.code <= 299:
+                if 200 <= response.code <= 299:
                     # No exception thrown and we got a good response code, but
                     # we're still not done.  Some protocols encode a bad
                     # station ID or password in the return message.
                     # Give any interested protocols a chance to examine it.
-                    self.check_response(_response)
+                    self.check_response(response)
                     # Does not seem to be an error. We're done.
-                    return _response
+                    response.close()
+                    return decoded_response
                 # We got a bad response code. By default, log it and try again.
                 # Provide method for derived classes to behave otherwise if
                 # necessary.
-                self.handle_code(_response.code, _count+1)
+                self.handle_code(response.code, _count+1)
             except (urllib.error.URLError, socket.error,
-                    http.client.BadStatusLine, http.client.IncompleteRead) as e:
+                    http_client.BadStatusLine, http_client.IncompleteRead) as e:
                 # An exception was thrown. By default, log it and try again.
                 # Provide method for derived classes to behave otherwise if
                 # necessary.
@@ -520,15 +521,13 @@ class PVOutputThread(weewx.restx.RESTThread):
         _request.add_header('X-Pvoutput-Apikey', self.api_key)
         _request.add_header('X-Pvoutput-SystemId', self.sid)
         # post the request
-        _response = self.post_with_retries(_request, urllib.parse.urlencode(params))
+        decoded_response = self.post_with_retries(_request, urllib.parse.urlencode(params))
         # if debug >= 2 then log some details of the response
         if weewx.debug >= 2:
             log.debug("%s: response: %s" % (self.protocol_name,
-                                            _response.read()))
-        # TODO. Fix this properly
-        ## a = _response.read().decode()
+                                            decoded_response))
         # return a list of dicts
-        return _to_dict(a, getsystem_fields, single_dict=True)
+        return _to_dict(decoded_response, getsystem_fields, single_dict=True)
 
     def skip_this_post(self, time_ts):
         """Determine whether a post is to be skipped or not.
@@ -755,16 +754,13 @@ class PVOutputAPI(object):
                 params[getstatus_params[var]] = data
 
         # submit the request to the API
-        _response = self.request_with_retries(self.SERVICE_SCRIPT['getstatus'],
-                                              params)
-        # TODO. check this, could it go in self.request_with_retries()
-        # encode as utf-8
-        ## _response = _response.encode('utf-8')
+        decoded_response = self.request_with_retries(self.SERVICE_SCRIPT['getstatus'],
+                                                     params)
         # return our result as a list of dicts
         if params['h'] == 1:
-            return _to_dict(_response, getstatus_history_fields)
+            return _to_dict(decoded_response, getstatus_history_fields)
         else:
-            return _to_dict(_response, getstatus_fields, single_dict=True)
+            return _to_dict(decoded_response, getstatus_fields, single_dict=True)
 
     def addstatus(self, record, cumulative=False, net=False, net_delay=0):
         """Add a status to the system.
@@ -979,13 +975,10 @@ class PVOutputAPI(object):
             getsystem_fields.append(extended)
 
         # submit the request to the API
-        _response = self.request_with_retries(self.SERVICE_SCRIPT['getsystem'],
-                                              params)
-        # TODO. check this, could it go in self.request_with_retries()
-        # encode as utf-8
-        ## _response = _response.encode('utf-8')
+        decoded_response = self.request_with_retries(self.SERVICE_SCRIPT['getsystem'],
+                                                     params)
         # return a list of dicts
-        return _to_dict(_response, getsystem_fields, single_dict=True)
+        return _to_dict(decoded_response, getsystem_fields, single_dict=True)
 
     def getoutput(self, **kwargs):
         """Retrieve system or team daily output information."""
