@@ -1,19 +1,18 @@
 """
 pvoutput.py
 
-A weeWX RESTful service to upload data to PVOutput.
+A WeeWX RESTful service to upload PV data to PVOutput.
 
 Copyright (C) 2016 Gary Roderick                  gjroderick<at>gmail.com
 
 This program is free software: you can redistribute it and/or modify it under
-the terms of the GNU General Public License as published by the Free
-Software Foundation, either version 3 of the License, or (at your option) any
-later version.
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
 
-This program is distributed in the hope that it will be useful, but WITHOUT
-ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
-details.
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see http://www.gnu.org/licenses/.
@@ -21,10 +20,10 @@ this program.  If not, see http://www.gnu.org/licenses/.
 Version: 0.4.0a1                                    Date: 8 March 2020
 
 Revision History
-    8 march 2020        v0.4.0
+    8 March 2020        v0.4.0
         - now WeeWX 4.0 python2/3 compatible
     1 February 2018     v0.3.0
-        - release as a weeWX extension
+        - release as a WeeWX extension
     24 February 2017    v0.2.3
         - added missing socket import
         - fixed incorrect FailedPost call
@@ -44,7 +43,7 @@ Revision History
     17 December 2016   v0.1.0
         - initial release
 
-Classes StdPVOutput and PVOutputThread are used as a weeWX RESTful service to
+Classes StdPVOutput and PVOutputThread are used as a WeeWX RESTful service to
 post data to PVOutput.org.
 
 Class PVOuputAPI provides the ability to add, update, read and delete system
@@ -53,7 +52,7 @@ data on PVOutput.org via the PVOutput API.
 Pre-requisites:
 
 Currently this uploader requires the following fields to be present in the
-weeWX archive:
+WeeWX archive:
 
     - dayEnergy
     - gridPower
@@ -72,7 +71,7 @@ weeWX archive:
              be present.
           2. extended1-6 only able to be used if a PVOutput donor.
           3. A future release of this uploader will enable the user to specify
-             which weeWX fields are to be uploaded to PVOutput.
+             which WeeWX fields are to be uploaded to PVOutput.
 
 To use:
 
@@ -95,14 +94,15 @@ To use:
     - under [Engine] [[Services]] add user.pvoutput.StdPVOutput to
       restful_services
 
-3.  Stop then start weeWX.
+3.  Restart WeeWX.
 
-4.  WeeWX will then upload a status record to PVOutput at the end of each weeWX
+4.  WeeWX will then upload a status record to PVOutput at the end of each WeeWX
     archive period.
 """
 
 
 import datetime
+import http.client
 import logging
 import socket
 import sys
@@ -112,13 +112,14 @@ import time
 from six.moves import queue
 from six.moves import urllib
 
-# weewx imports
+# WeeWX imports
 import weewx.restx
 import weewx.units
 from weeutil.weeutil import timestamp_to_string, startOfDay
 
 # get a logger object
 log = logging.getLogger(__name__)
+
 
 # ============================================================================
 #                            class StdPVOutput
@@ -138,13 +139,15 @@ class StdPVOutput(weewx.restx.StdRESTful):
         super(StdPVOutput, self).__init__(engine, config_dict)
 
         # get the PVOutput settings from [StdRESTful] in our config dict
-        _pvoutput_dict = weewx.restx.get_site_dict(config_dict, 'PVOutput',
-                                                   'system_id', 'api_key')
+        _pvoutput_dict = weewx.restx.get_site_dict(config_dict,
+                                                   'PVOutput',
+                                                   'system_id',
+                                                   'api_key')
         if _pvoutput_dict is None:
             return
         _pvoutput_dict.setdefault('server_url', StdPVOutput.api_url)
 
-        # Get the manager dictionary:
+        # get the manager dictionary:
         _manager_dict = weewx.manager.get_manager_dict_from_config(config_dict,
                                                                    'aurora_binding')
 
@@ -157,10 +160,10 @@ class StdPVOutput(weewx.restx.StdRESTful):
                                              **_pvoutput_dict)
         # start the thread
         self.archive_thread.start()
-        # bind to NEW_ARCHIVE _RECORD event
+        # bind to NEW_ARCHIVE_RECORD event
         self.bind(weewx.NEW_ARCHIVE_RECORD, self.new_archive_record)
-        log.info("pvoutput: %s: Data for system ID %s will be posted" % (StdPVOutput.protocol_name,
-                                                                         _pvoutput_dict['system_id']))
+        log.info("%s: Data for system ID %s will be posted" % (StdPVOutput.protocol_name,
+                                                               _pvoutput_dict['system_id']))
 
     def new_archive_record(self, event):
         """Put new archive records in the archive queue.
@@ -183,7 +186,7 @@ class PVOutputThread(weewx.restx.RESTThread):
     # PVOutput API scripts that we know about
     SERVICE_SCRIPT = {'addstatus': '/service/r2/addstatus.jsp',
                       'getsystem': '/service/r2/getsystem.jsp'
-                     }
+                      }
 
     def __init__(self, queue, manager_dict, system_id, api_key, server_url,
                  protocol_name="Unknown-RESTful", post_interval=None,
@@ -204,7 +207,7 @@ class PVOutputThread(weewx.restx.RESTThread):
             server_url: The base URL for the PVOuputr API server.
         """
 
-        # Initialize my superclass:
+        # initialize my superclass:
         super(PVOutputThread, self).__init__(queue,
                                              protocol_name=protocol_name,
                                              manager_dict=manager_dict,
@@ -236,14 +239,14 @@ class PVOutputThread(weewx.restx.RESTThread):
         else:
             self.max_batch_size = 30
             self.update_period = 14
-        # Now summarize what we are doing in a few log entries
-        log.debug("pvoutput: server url=%s" % self.server_url)
-        log.debug("pvoutput: cumulative_energy=%s net=%s net_delay=%d tariffs=%s" % (self.cumulative,
-                                                                                     self.net,
-                                                                                     self.net_delay,
-                                                                                     self.tariffs))
-        log.debug("pvoutput: max batch size=%d max update period=%d days" % (self.max_batch_size,
-                                                                             self.update_period))
+        # now summarize what we are doing in a few log entries
+        log.debug("server url=%s" % self.server_url)
+        log.debug("cumulative_energy=%s net=%s net_delay=%d tariffs=%s" % (self.cumulative,
+                                                                           self.net,
+                                                                           self.net_delay,
+                                                                           self.tariffs))
+        log.debug("max batch size=%d max update period=%d days" % (self.max_batch_size,
+                                                                   self.update_period))
 
     def process_record(self, record, dbmanager):
         """Add a status to the system.
@@ -267,7 +270,7 @@ class PVOutputThread(weewx.restx.RESTThread):
 
         # map our record fields to the optional addstatus fields accepted by
         # the API
-        ADDSTATUS_PARAMS = {'dayEnergy': 'v1',
+        addstatus_params = {'dayEnergy': 'v1',
                             'gridPower': 'v2',
                             'energyCons': 'v3',
                             'powerCons': 'v4',
@@ -281,7 +284,7 @@ class PVOutputThread(weewx.restx.RESTThread):
                             'extended6': 'v12'}
         # addstatus service requires data in at least one of the following
         # fields
-        REQUIRED_PARAMS = ['v1', 'v2', 'v3', 'v4']
+        required_params = ['v1', 'v2', 'v3', 'v4']
 
         # Get any extra data (that is not in record) required to post a status
         # to PVOutput. In this case we need today's cumulative energy.
@@ -291,8 +294,8 @@ class PVOutputThread(weewx.restx.RESTThread):
         # should do this in skip_record() but to do so would require knowledge
         # of the record being posted and that would mean overriding run_loop()
         # just to change 1 line of code.
-        for rec_field, api_field in ADDSTATUS_PARAMS.items():
-            if api_field in REQUIRED_PARAMS:
+        for rec_field, api_field in addstatus_params.items():
+            if api_field in required_params:
                 if rec_field in record and record[rec_field] is not None:
                     # we have one, break so we can process the record
                     break
@@ -321,7 +324,7 @@ class PVOutputThread(weewx.restx.RESTThread):
             params['delay'] = self.net_delay
 
         # add any optional parameters from our data
-        for rec_field, api_field in ADDSTATUS_PARAMS.items():
+        for rec_field, api_field in addstatus_params.items():
             if rec_field in _metric_rec and _metric_rec[rec_field] is not None:
                 params[api_field] = _metric_rec[rec_field]
 
@@ -331,17 +334,17 @@ class PVOutputThread(weewx.restx.RESTThread):
         _request = urllib.request.Request(url=url)
         # if debug >= 2 then log some details of our request
         if weewx.debug >= 2:
-            log.debug("pvoutput: %s: url: %s payload: %s" % (self.protocol_name,
-                                                             url,
-                                                             urllib.parse.urlencode(params)))
+            log.debug("%s: url: %s payload: %s" % (self.protocol_name,
+                                                   url,
+                                                   urllib.parse.urlencode(params)))
         # add our headers, in this case sid and api_key
         _request.add_header('X-Pvoutput-Apikey', self.api_key)
         _request.add_header('X-Pvoutput-SystemId', self.sid)
         response = self.post_with_retries(_request, urllib.parse.urlencode(params))
         # if debug >= 2 then log some details of the response
         if weewx.debug >= 2:
-            log.debug("pvoutput: %s: response: %s" % (self.protocol_name,
-                                                      response.read()))
+            log.debug("%s: response: %s" % (self.protocol_name,
+                                            response.read()))
 
     def get_record(self, record, dbmanager):
         """Augment record data with additional data derived from the archive.
@@ -363,7 +366,7 @@ class PVOutputThread(weewx.restx.RESTThread):
         _time_ts = record['dateTime']
         _sod_ts = startOfDay(_time_ts)
 
-        # Make a copy of the record, then start adding to it:
+        # make a copy of the record, then start adding to it
         _datadict = dict(record)
 
         # If the type 'energy' does not appear in the archive schema, or the
@@ -378,17 +381,16 @@ class PVOutputThread(weewx.restx.RESTThread):
                 if _result is not None and _result[0] is not None:
                     if not _result[1] == _result[2] == record['usUnits']:
                         raise ValueError("Inconsistent units (%s vs %s vs %s) when querying for dayEnergy" %
-                                             (_result[1], _result[2], record['usUnits']))
+                                         (_result[1], _result[2], record['usUnits']))
                     _datadict['dayEnergy'] = _result[0]
                 else:
                     _datadict['dayEnergy'] = None
 
         except weedb.OperationalError as e:
-            log.debug("pvoutput: %s: Database OperationalError '%s'" % (self.protocol_name, e))
+            log.debug("%s: Database OperationalError '%s'" % (self.protocol_name, e))
 
         return _datadict
 
-#TODO. Decode PVOutput OK 200 response
     def post_with_retries(self, request, payload=None):
         """Post a request, retrying if necessary and returning a response.
 
@@ -408,13 +410,27 @@ class PVOutputThread(weewx.restx.RESTThread):
             PVOutput API response.
         """
 
-        # Retry up to max_tries times:
+        # retry up to max_tries times
         for _count in range(self.max_tries):
             try:
                 # Do a single post. The function post_request() can be
                 # specialized by a RESTful service to catch any unusual
                 # exceptions.
-                _response = self.post_request(request, payload)
+                w = self.post_request(request, payload)
+                # TODO. Decode PVOutput OK 200 response
+                # Get charset used so we can decode the stream correctly.
+                # Unfortunately the way to get the charset depends on whether
+                # we are running under python2 or python3. Assume python3 but be
+                # prepared to catch the error if python2.
+                try:
+                    char_set = w.headers.get_content_charset()
+                except AttributeError:
+                    # must be python2
+                    char_set = w.headers.getparam('charset')
+                # now get the response decoding it appropriately
+                _response = w.read().decode(char_set)
+                w.close()
+                # now look at the response code
                 if 200 <= _response.code <= 299:
                     # No exception thrown and we got a good response code, but
                     # we're still not done.  Some protocols encode a bad
@@ -448,26 +464,26 @@ class PVOutputThread(weewx.restx.RESTThread):
         # else it must be in the range 201-299 incl, not an error just
         # unexpected so just log it and continue.
         if response.code != 200:
-            log.debug("pvoutput: %s: Unexpected response code: %s" % (self.protocol_name,
-                                                                      response.code))
+            log.debug("%s: Unexpected response code: %s" % (self.protocol_name,
+                                                            response.code))
 
     def getsystem(self, secondary_array=0, tariffs=0, teams=0,
                   month_estimates=0, donations=1, sid1=0, extended=0):
         """Retrieve system information from PVOutput API."""
 
         # define the fields returned by the API
-        BASE = ['name', 'size', 'postcode', 'num_panels', 'panel_power',
+        base = ['name', 'size', 'postcode', 'num_panels', 'panel_power',
                 'panel_brand', 'num_inverters', 'inverter_power',
                 'inverter_brand', 'orientation', 'tilt', 'shade',
                 'install_date', 'latitude', 'longitude', 'interval']
-        SECONDARY = ['sec_num_panels', 'sec_panel_power', 'sec_panel_brand',
+        secondary = ['sec_num_panels', 'sec_panel_power', 'sec_panel_brand',
                      'sec_num_inverters']
-        TARIFF = ['export', 'import_peak', 'import_off_peak',
+        tariff = ['export', 'import_peak', 'import_off_peak',
                   'import_shoulder', 'import_high_shoulder',
                   'import_daily_charge']
-        TEAMS = ['teams']
-        DONATIONS = ['donations']
-        EXTENDED = ['extended']
+        teams = ['teams']
+        donations = ['donations']
+        extended = ['extended']
 
         # construct the parameter dict to be sent as part of our API request
         params = dict()
@@ -480,16 +496,16 @@ class PVOutputThread(weewx.restx.RESTThread):
         params['ext'] = extended
 
         # assemble a list of lists of the fields we expect to be returned
-        GETSYSTEM_FIELDS = [BASE]
+        getsystem_fields = [base]
         if params['array2'] == 1:
-            GETSYSTEM_FIELDS.append(SECONDARY)
+            getsystem_fields.append(secondary)
         if self.tariffs:
-            GETSYSTEM_FIELDS.append(TARIFF)
+            getsystem_fields.append(tariff)
         if params['teams'] == 1:
-            GETSYSTEM_FIELDS.append(TEAMS)
-        GETSYSTEM_FIELDS.append(DONATIONS)
+            getsystem_fields.append(teams)
+        getsystem_fields.append(donations)
         if params['ext'] == 1:
-            GETSYSTEM_FIELDS.append(EXTENDED)
+            getsystem_fields.append(extended)
 
         # get the url to be used
         url = self.server_url + self.SERVICE_SCRIPT['getsystem']
@@ -497,9 +513,9 @@ class PVOutputThread(weewx.restx.RESTThread):
         _request = urllib.request.Request(url=url)
         # if debug >= 2 then log some details of our request
         if weewx.debug >= 2:
-            log.debug("pvoutput: %s: url: %s payload: %s" % (self.protocol_name,
-                                                             url,
-                                                             urllib.parse.urlencode(params)))
+            log.debug("%s: url: %s payload: %s" % (self.protocol_name,
+                                                   url,
+                                                   urllib.parse.urlencode(params)))
         # add our headers, in this case sid and api_key
         _request.add_header('X-Pvoutput-Apikey', self.api_key)
         _request.add_header('X-Pvoutput-SystemId', self.sid)
@@ -507,12 +523,12 @@ class PVOutputThread(weewx.restx.RESTThread):
         _response = self.post_with_retries(_request, urllib.parse.urlencode(params))
         # if debug >= 2 then log some details of the response
         if weewx.debug >= 2:
-            log.debug("pvoutput: %s: response: %s" % (self.protocol_name,
-                                                      _response.read()))
-        #TODO. Fix thi sproperly
-        a = _response.read().decode()
+            log.debug("%s: response: %s" % (self.protocol_name,
+                                            _response.read()))
+        # TODO. Fix this properly
+        ## a = _response.read().decode()
         # return a list of dicts
-        return _to_dict(a, GETSYSTEM_FIELDS, single_dict=True)
+        return _to_dict(a, getsystem_fields, single_dict=True)
 
     def skip_this_post(self, time_ts):
         """Determine whether a post is to be skipped or not.
@@ -530,12 +546,12 @@ class PVOutputThread(weewx.restx.RESTThread):
 
         # don't post if this record is too old (stale)
         if self.stale is not None:
-            _how_old = time.time() - time_ts
-            if _how_old > self.stale:
-                log.debug("pvoutput: %s: record %s is stale (%d > %d)." % (self.protocol_name,
-                                                                           timestamp_to_string(time_ts),
-                                                                           _how_old,
-                                                                           self.stale))
+            how_old = time.time() - time_ts
+            if how_old > self.stale:
+                log.debug("%s: record %s is stale (%d > %d)." % (self.protocol_name,
+                                                                 timestamp_to_string(time_ts),
+                                                                 how_old,
+                                                                 self.stale))
                 return True
 
         # don't post if this record is older than that accepted by PVOutput
@@ -545,21 +561,21 @@ class PVOutputThread(weewx.restx.RESTThread):
             _earliest_ts = time.mktime(_earliest_dt.timetuple())
             if time_ts < _earliest_ts:
                 how_old = (now_dt - datetime.datetime.fromtimestamp(time_ts)).days
-                log.debug("pvoutput: %s: record %s is older than PVOuptut imposed limits (%d > %d)." % (self.protocol_name,
-                                                                                                        timestamp_to_string(time_ts),
-                                                                                                        _how_old,
-                                                                                                        self.self.update_period))
+                log.debug("%s: record %s is older than PVOutput imposed limits (%d > %d)." % (self.protocol_name,
+                                                                                              timestamp_to_string(time_ts),
+                                                                                              how_old,
+                                                                                              self.self.update_period))
                 return True
 
         # if we have a minimum interval between posts then don't post if that
         # interval has not passed
         if self.post_interval is not None:
-            _how_long = time_ts - self.lastpost
-            if _how_long < self.post_interval:
-                log.debug("pvoutput: %s: wait interval (%d < %d) has not passed for record %s" % (self.protocol_name,
-                                                                                                  _how_long,
-                                                                                                  self.post_interval,
-                                                                                                  timestamp_to_string(time_ts)))
+            how_long = time_ts - self.lastpost
+            if how_long < self.post_interval:
+                log.debug("%s: wait interval (%d < %d) has not passed for record %s" % (self.protocol_name,
+                                                                                        how_long,
+                                                                                        self.post_interval,
+                                                                                        timestamp_to_string(time_ts)))
                 return True
 
         self.lastpost = time_ts
@@ -573,6 +589,7 @@ class PVOutputThread(weewx.restx.RESTThread):
 
 class PVUploadError(Exception):
     """Raised when data to PV Output does not upload correctly."""
+
 
 class HTTPResponseError(Exception):
     """Raised when HTTP request returns an error."""
@@ -592,7 +609,7 @@ class PVOutputAPI(object):
                       'deletestatus': '/service/r2/deletestatus.jsp',
                       'getoutput': '/service/r2/getoutput.jsp',
                       'getsystem': '/service/r2/getsystem.jsp'
-                     }
+                      }
 
     def __init__(self, **kwargs):
         """"Initialise the PVOutputAPI object."""
@@ -649,7 +666,7 @@ class PVOutputAPI(object):
                 else:
                     # something went wrong, so raise it
                     raise HTTPResponseError("%s returned a bad HTTP response code: %s" %
-                                                (url, _status_code))
+                                            (url, _status_code))
             except urllib.error.URLError as e:
                 # If we have a reason for the error then we likely didn't get
                 # to the server. Log the error and continue.
@@ -674,16 +691,9 @@ class PVOutputAPI(object):
             The file like object response from a urllib2.urlopen() call.
         """
 
-        try:
-            # Python 2.5 and earlier does not have a 'timeout' parameter so be
-            # prepared to catch the exception and try a Python 2.5 compatible
-            # call.
-            _response = urllib.request.urlopen(request,
-                                        data=payload,
-                                        timeout=self.timeout)
-        except TypeError:
-            # Python 2.5 compatible call
-            _response = urllib.request.urlopen(request, data=payload)
+        _response = urllib.request.urlopen(request,
+                                           data=payload,
+                                           timeout=self.timeout)
         return _response
 
     def getstatus(self, history=0, ascending=1, limit=288, extended=0,
@@ -712,19 +722,19 @@ class PVOutputAPI(object):
         """
 
         # map our kwargs input parameters to the fields required by the API
-        GETSTATUS_PARAMS = {'date': 'd',
+        getstatus_params = {'date': 'd',
                             'time': 't',
                             'from': 'from',
                             'to': 'to',
                             'sid1': 'sid1'}
         # define the fields returned by the API, there are 2 cases (1) for a
         # single (ie non-history) request and (2) for a history request
-        GETSTATUS_FIELDS = [['date', 'time', 'energy_generation',
+        getstatus_fields = [['date', 'time', 'energy_generation',
                              'power_generation', 'energy_consumption',
                              'power_consumption', 'efficiency', 'temperature',
                              'voltage', 'ext1', 'ext2', 'ext3', 'ext4', 'ext5',
                              'ext6', ]]
-        GETSTATUS_HISTORY_FIELDS = [['date', 'time', 'energy_generation',
+        getstatus_history_fields = [['date', 'time', 'energy_generation',
                                      'energy_efficiency', 'inst_power',
                                      'avg_power', 'normalised_output',
                                      'energy_consumption', 'power_consumption',
@@ -741,20 +751,20 @@ class PVOutputAPI(object):
 
         # now trawl our kwargs and add
         for var, data in kwargs.items():
-            if var in GETSTATUS_PARAMS and data is not None:
-                params[GETSTATUS_PARAMS[var]] = data
+            if var in getstatus_params and data is not None:
+                params[getstatus_params[var]] = data
 
         # submit the request to the API
         _response = self.request_with_retries(self.SERVICE_SCRIPT['getstatus'],
                                               params)
         # TODO. check this, could it go in self.request_with_retries()
         # encode as utf-8
-        _response = _response.encode('utf-8')
+        ## _response = _response.encode('utf-8')
         # return our result as a list of dicts
         if params['h'] == 1:
-            return _to_dict(_response, GETSTATUS_HISTORY_FIELDS)
+            return _to_dict(_response, getstatus_history_fields)
         else:
-            return _to_dict(_response, GETSTATUS_FIELDS, single_dict=True)
+            return _to_dict(_response, getstatus_fields, single_dict=True)
 
     def addstatus(self, record, cumulative=False, net=False, net_delay=0):
         """Add a status to the system.
@@ -776,7 +786,7 @@ class PVOutputAPI(object):
         """
 
         # map our record fields to the optional fields accepted by the API
-        ADDSTATUS_PARAMS = {'energy': 'v1',
+        addstatus_params = {'energy': 'v1',
                             'gridPower': 'v2',
                             'energyCons': 'v3',
                             'powerCons': 'v4',
@@ -806,7 +816,7 @@ class PVOutputAPI(object):
             params['delay'] = net_delay
 
         # add any optional parameters from our record
-        for rec_field, API_field in ADDSTATUS_PARAMS.items():
+        for rec_field, API_field in addstatus_params.items():
             if rec_field in record and record[rec_field] is not None:
                 params[API_field] = record[rec_field]
 
@@ -816,14 +826,14 @@ class PVOutputAPI(object):
                                              params)
         except HTTPResponseError as e:
             # log the error
-            log.info("addstatus: Failed to upload status for %s:" % timestamp_to_string(record['dateTime']))
-            log.info("addstatus:      %s" % e)
+            log.info("Failed to upload status for %s:" % timestamp_to_string(record['dateTime']))
+            log.info("      %s" % e)
 
     def addbatchstatus(self, records, cumulative=False):
         """Add a batch status to the system.
 
         Input:
-            records:    A list of weeWX archive record containing the data to
+            records:    A list of WeeWX archive record containing the data to
                         be added.
             cumulative: Set if energey field passed is lifetime cumulative
                         (rather than daytime cumulative). Boolean, default
@@ -836,7 +846,7 @@ class PVOutputAPI(object):
 
         # list of fields (excluding date and time) in order as required by
         # the API
-        ADDBATCHSTATUS_PARAMS = ['energy', 'gridPower', 'energyCons',
+        addbatchstatus_params = ['energy', 'gridPower', 'energyCons',
                                  'powerCons', 'inverterTemp', 'gridVoltage',
                                  'extended1', 'extended2', 'extended3',
                                  'extended4', 'extended5', 'extended6']
@@ -854,7 +864,7 @@ class PVOutputAPI(object):
             # step through each of the optional parameters for the record and
             # add them to the parameter list if they are not None. Add a ''
             # as a placeholder if we don't have a value for a given parameter.
-            for _param in ADDBATCHSTATUS_PARAMS:
+            for _param in addbatchstatus_params:
                 if _param in record:
                     if record[_param]:
                         _param_list.append(str(record[_param]))
@@ -862,9 +872,9 @@ class PVOutputAPI(object):
                         _param_list.append('')
                 else:
                     _param_list.append('')
-            # Convert the completed parameter list to a comma separated string
+            # convert the completed parameter list to a comma separated string
             # stripping off any right hand repeated commas then add the string
-            # to our 'data' list.
+            # to our 'data' list
             _data_list.append(','.join(_param_list).rstrip(','))
         # convert the data list to a string of semi-colon separated individual
         # status parameter strings
@@ -933,18 +943,18 @@ class PVOutputAPI(object):
         """Retrieve system information."""
 
         # define the fields returned by the API
-        BASE = ['name', 'size', 'postcode', 'num_panels', 'panel_power',
+        base = ['name', 'size', 'postcode', 'num_panels', 'panel_power',
                 'panel_brand', 'num_inverters', 'inverter_power',
                 'inverter_brand', 'orientation', 'tilt', 'shade',
                 'install_date', 'latitude', 'longitude', 'interval']
-        SECONDARY = ['sec_num_panels', 'sec_panel_power', 'sec_panel_brand',
+        secondary = ['sec_num_panels', 'sec_panel_power', 'sec_panel_brand',
                      'sec_num_inverters']
-        TARIFF = ['export', 'import_peak', 'import_off_peak',
+        tariff = ['export', 'import_peak', 'import_off_peak',
                   'import_shoulder', 'import_high_shoulder',
                   'import_daily_charge']
-        TEAMS = ['teams']
-        DONATIONS = ['donations']
-        EXTENDED = ['extended']
+        teams = ['teams']
+        donations = ['donations']
+        extended = ['extended']
 
         # construct the parameter dict to be sent as part of our API request
         params = dict()
@@ -957,30 +967,30 @@ class PVOutputAPI(object):
         params['ext'] = extended
 
         # assemble a list of lists of the fields we expect to be returned
-        GETSYSTEM_FIELDS = [BASE]
+        getsystem_fields = [base]
         if params['array2'] == 1:
-            GETSYSTEM_FIELDS.append(SECONDARY)
+            getsystem_fields.append(secondary)
         if self.tariffs:
-            GETSYSTEM_FIELDS.append(TARIFF)
+            getsystem_fields.append(tariff)
         if params['teams'] == 1:
-            GETSYSTEM_FIELDS.append(TEAMS)
-        GETSYSTEM_FIELDS.append(DONATIONS)
+            getsystem_fields.append(teams)
+        getsystem_fields.append(donations)
         if params['ext'] == 1:
-            GETSYSTEM_FIELDS.append(EXTENDED)
+            getsystem_fields.append(extended)
 
         # submit the request to the API
         _response = self.request_with_retries(self.SERVICE_SCRIPT['getsystem'],
                                               params)
         # TODO. check this, could it go in self.request_with_retries()
         # encode as utf-8
-        _response = _response.encode('utf-8')
+        ## _response = _response.encode('utf-8')
         # return a list of dicts
-        return _to_dict(_response, GETSYSTEM_FIELDS, single_dict=True)
+        return _to_dict(_response, getsystem_fields, single_dict=True)
 
     def getoutput(self, **kwargs):
         """Retrieve system or team daily output information."""
 
-        GETOUTPUT_PARAMS = {'from': 'df',
+        getoutput_params = {'from': 'df',
                             'to': 'dt',
                             'aggregate': 'a',
                             'limit': 'limit',
@@ -989,8 +999,8 @@ class PVOutputAPI(object):
 
         params = {}
         for var, data in kwargs.items():
-            if var in GETOUTPUT_PARAMS and data is not None:
-                params[GETOUTPUT_PARAMS[var]] = data
+            if var in getoutput_params and data is not None:
+                params[getoutput_params[var]] = data
         return self.request_with_retries(self.SERVICE_SCRIPT['getoutput'],
                                          params)
 
