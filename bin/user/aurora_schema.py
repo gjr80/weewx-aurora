@@ -17,9 +17,11 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see http://www.gnu.org/licenses/.
 
-Version: 0.6.0                                        Date: 9 March 2020
+Version: 0.6.1                                        Date: 12 March 2020
 
 Revision History
+    12 March 2020        v0.6.1
+        - bumped version number only
     9 March 2020        v0.6.0
         - bumped version number only
     22 December 2018    v0.5.2
