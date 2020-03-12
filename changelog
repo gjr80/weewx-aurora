@@ -1,3 +1,5 @@
+v0.6.1
+*   fix issue with structure of inverter commands with a payload
 v0.6.0
 *   ported to WeeWX 4.0 Python 2/3
 v0.5.2

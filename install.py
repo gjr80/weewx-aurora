@@ -10,9 +10,11 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 
                      Installer for Aurora inverter driver
 
-Version: 0.6.0                                      Date: 9 March 2020
+Version: 0.6.1                                      Date: 12 March 2020
 
 Revision History
+    12 March 2020       v0.6.1
+        - bumped version number only
     9 March 2020        v0.6.0
         - minor formatting changes
     22 December 2018    v0.5.2
@@ -29,7 +31,7 @@ from distutils.version import StrictVersion
 from setup import ExtensionInstaller
 
 REQUIRED_VERSION = "4.0.0"
-AURORA_VERSION = "0.6.0"
+AURORA_VERSION = "0.6.1"
 
 
 def loader():
