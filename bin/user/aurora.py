@@ -17,9 +17,11 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see http://www.gnu.org/licenses/.
 
-Version: 0.6.0                                        Date: 9 March 2020
+Version: 0.6.1                                        Date: 12 March 2020
 
 Revision History
+    12 March 2020       v0.6.1
+        - fix issue with structure of inverter commands with a payload
     9 March 2020        v0.6.0
         - now WeeWX 4.0 python2/3 compatible
     22 December 2018    v0.5.2
@@ -130,7 +132,6 @@ The options can be selected using:
 import logging
 import serial
 import struct
-import syslog
 import time
 
 # Python 2/3 compatibility shims
@@ -147,7 +148,7 @@ log = logging.getLogger(__name__)
 
 # our name and version number
 DRIVER_NAME = 'Aurora'
-DRIVER_VERSION = '0.6.0'
+DRIVER_VERSION = '0.6.1'
 
 
 # define unit groups, formats and conversions for units used by the aurora
@@ -1061,7 +1062,16 @@ class AuroraInverter(object):
                          self.commands[command]['sub'], globall)
         elif payload is not None:
             # we have no sub-command, but we have a payload
-            command_t = (address, self.commands[command]['cmd']) + tuple([ord(b) for b in payload])
+            # First get our payload as a tuple of ascii codes, how we do this
+            # depends on which version of python is being used. Try to use ord
+            # on each character (which works under python 2), if that fails we
+            # have a python 3 byte string and we can use the string members as
+            # they are.
+            try:
+                payload_t = tuple([ord(b) for b in payload])
+            except TypeError:
+                payload_t = tuple([b for b in payload])
+            command_t = (address, self.commands[command]['cmd']) + payload_t
         else:
             # no sub-command or payload
             command_t = (address, self.commands[command]['cmd'])
@@ -1122,7 +1132,7 @@ class AuroraInverter(object):
                     self.open_port()
                     # log that the port has been cycled
                     if weewx.debug >= 2:
-                        log.debug("send_cmd_with_crc: port cycle complete.")
+                        log.debug("send_cmd_with_crc: Port cycle complete.")
                 else:
                     if weewx.debug >= 2:
                         log.debug("send_cmd_with_crc: try #%d unsuccessful... sleeping" % (count + 1,))
@@ -1691,8 +1701,6 @@ if __name__ == '__main__':
     usage = """sudo PYTHONPATH=/home/weewx/bin python
                /home/weewx/bin/user/%prog [--option]"""
 
-    syslog.openlog('aurora', syslog.LOG_PID | syslog.LOG_CONS)
-    syslog.setlogmask(syslog.LOG_UPTO(syslog.LOG_DEBUG))
     parser = optparse.OptionParser(usage=usage)
     parser.add_option('--config', dest='config_path', type=str,
                       metavar="CONFIG_FILE",
