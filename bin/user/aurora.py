@@ -3,7 +3,7 @@ aurora.py
 
 A WeeWX driver for Power One Aurora inverters.
 
-Copyright (C) 2016-2020 Gary Roderick                  gjroderick<at>gmail.com
+Copyright (C) 2016-2023 Gary Roderick                  gjroderick<at>gmail.com
 
 This program is free software: you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -17,9 +17,15 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see http://www.gnu.org/licenses/.
 
-Version: 0.6.1                                        Date: 12 March 2020
+Version: 0.7.0a1                                      Date: 23 November 2023
 
 Revision History
+    23 November 2023    v0.7.0
+        - now WeeWX v5 compatible
+        - python v3.6 and earlier no longer supported
+        - removed option to use inverter time as loop packet dateTime field
+        - replaced the deprecated optparse module with argparse
+        - add bolding to usage instructions when driver is run directly
     12 March 2020       v0.6.1
         - fix issue with structure of inverter commands with a payload
     9 March 2020        v0.6.0
@@ -132,10 +138,6 @@ The options can be selected using:
 import logging
 import serial
 import struct
-import time
-
-# Python 2/3 compatibility shims
-from six import iteritems
 
 # WeeWX imports
 import weewx.drivers
@@ -148,7 +150,7 @@ log = logging.getLogger(__name__)
 
 # our name and version number
 DRIVER_NAME = 'Aurora'
-DRIVER_VERSION = '0.6.1'
+DRIVER_VERSION = '0.7.0a1'
 
 
 # define unit groups, formats and conversions for units used by the aurora
@@ -180,7 +182,7 @@ weewx.units.conversionDict['kohm'] = {'ohm': lambda x: x * 1000.0,
 weewx.units.conversionDict['Mohm'] = {'ohm': lambda x: x * 1000000.0,
                                       'kohm': lambda x: x * 1000.0}
 
-# set default formats and labels for kilo and mega watt hours
+# set default formats and labels for kilo and megawatt hours
 weewx.units.default_unit_format_dict['kilo_watt_hour'] = '%.1f'
 weewx.units.default_unit_label_dict['kilo_watt_hour'] = ' kWh'
 weewx.units.default_unit_format_dict['mega_watt_hour'] = '%.1f'
@@ -237,7 +239,7 @@ weewx.units.obs_group_dict['griddcFrequency'] = 'group_frequency'
 weewx.units.obs_group_dict['energy'] = 'group_energy'
 
 
-def loader(config_dict, engine):  # @UnusedVariable
+def loader(config_dict, engine):
     return AuroraDriver(config_dict[DRIVER_NAME])
 
 
@@ -249,7 +251,6 @@ def confeditor_loader():
 #                           Aurora Error classes
 # ============================================================================
 
-
 class DataFormatError(Exception):
     """Exception raised when an error is thrown when processing data being sent
        to or from the inverter."""
@@ -258,7 +259,6 @@ class DataFormatError(Exception):
 # ============================================================================
 #                            class AuroraDriver
 # ============================================================================
-
 
 class AuroraDriver(weewx.drivers.AbstractDevice):
     """Class representing connection to Aurora inverter."""
@@ -511,12 +511,6 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                                                                               self.polling_interval))
         log.debug('   max_command_tries %d max_loop_tries %d' % (self.max_command_tries,
                                                                  self.max_loop_tries))
-        self.use_inverter_time = to_bool(aurora_dict.get('use_inverter_time',
-                                                         False))
-        if self.use_inverter_time:
-            log.debug('   inverter time will be used to timestamp data')
-        else:
-            log.debug('   WeeWX system time will be used to timestamp data')
 
         # get an AuroraInverter object
         self.inverter = AuroraInverter(port,
@@ -584,22 +578,14 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                     packet = self.process_raw_packet(raw_packet)
                     # add in/set fields that require special consideration
                     if packet:
-
-                        # dateTime - either be system time or inverter time
-                        if not self.use_inverter_time:
-                            # we are NOT using the inverter timestamp so set
-                            # the packet timestamp to the current system time
-                            packet['dateTime'] = _ts
-                        else:
-                            # we ARE using the inverter timestamp so set the
-                            # packet timestamp to the current inverter time
-                            packet['dateTime'] = packet['timeDate']
+                        # dateTime
+                        packet['dateTime'] = _ts
 
                         # usUnits - set to METRIC
                         packet['usUnits'] = weewx.METRIC
 
                         # energy - derive from dayEnergy
-                        # dayEnergy is cumulative by day but we need
+                        # dayEnergy is cumulative by day, but we need
                         # incremental values so we need to calculate it based
                         # on the last cumulative value
                         packet['energy'] = self.calculate_energy(packet['dayEnergy'],
@@ -609,9 +595,9 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                         if weewx.debug >= 2:
                             log.debug("genLoopPackets: received loop packet: %s" % packet)
                         yield packet
-                    # wait until its time to poll again
+                    # wait until it's time to poll again
                     if weewx.debug >= 2:
-                        log.debug("genLoopPackets: Sleeping")
+                        log.debug("genLoopPackets: sleeping")
                     while time.time() < _ts + self.polling_interval:
                         time.sleep(0.2)
                 except IOError as e:
@@ -654,7 +640,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
 
         # map raw packet readings to loop packet fields using the field map
         _packet = {}
-        for dest, src in iteritems(self.field_map):
+        for dest, src in self.field_map.items():
             if src in raw_packet:
                 _packet[dest] = raw_packet[src]
                 # apply any special processing that may be required
@@ -728,7 +714,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         inverter is awake then the time is set.
         """
 
-        # check if the inverter is on line, we will get None if the inverter
+        # check if the inverter is online, we will get None if the inverter
         # cannot be contacted
         _time_ts = self.do_cmd('getTimeDate').data
         # if the inverter is not there then raise a NotImplementedError
@@ -757,7 +743,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                 # good response so log it
                 log.info("Inverter time set")
             else:
-                # something went wrong, it's not fatal but we need to log the
+                # something went wrong; it's not fatal, but we need to log the
                 # failure and the returned states
                 log.error("Inverter time was not set")
                 log.error("  ***** transmission state=%d (%s)" % (_response.transmission_state,
@@ -796,7 +782,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
 
         _energy = {}
         if period is None:
-            for _period, _reading in iteritems(manifest):
+            for _period, _reading in manifest.items():
                 _energy[_period] = self.do_cmd(_reading).data
         elif period in manifest:
             _energy[period] = self.do_cmd(period).data
@@ -812,10 +798,10 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
     def get_dsp(self):
         """Get DSP data."""
 
-        manifest = dict((k, v) for k, v in iteritems(self.inverter.commands) if v['cmd'] == 59)
+        manifest = dict((k, v) for k, v in self.inverter.commands.items() if v['cmd'] == 59)
 
         _dsp = {}
-        for reading, params in iteritems(manifest):
+        for reading, params in manifest.items():
             _dsp[reading] = self.do_cmd(reading, globall=1).data
         return _dsp
 
@@ -888,7 +874,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         _manifest = []
         _field_map = {}
         _field_map_config = inverter_dict.get('sensor_map', AuroraDriver.DEFAULT_SENSOR_MAP)
-        for dest, src in iteritems(_field_map_config):
+        for dest, src in _field_map_config.items():
             if src in self.inverter.commands:
                 _manifest.append(src)
                 _field_map[dest] = src
@@ -900,7 +886,6 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
 # ============================================================================
 #                               class Aurora
 # ============================================================================
-
 
 class AuroraInverter(object):
     """Class to support serial comms with an Aurora PVI-6000 inverter."""
@@ -1123,7 +1108,7 @@ class AuroraInverter(object):
                     self.open_port()
                     # log that the port has been cycled
                     if weewx.debug >= 2:
-                        log.debug("send_cmd_with_crc: Port cycle complete.")
+                        log.debug("send_cmd_with_crc: port cycle complete.")
                 else:
                     if weewx.debug >= 2:
                         log.debug("send_cmd_with_crc: try #%d unsuccessful... sleeping" % (count + 1,))
@@ -1535,7 +1520,6 @@ class AuroraInverter(object):
 #                          Class AuroraConfEditor
 # ============================================================================
 
-
 class AuroraConfEditor(weewx.drivers.AbstractConfEditor):
 
     @property
@@ -1587,7 +1571,6 @@ class AuroraConfEditor(weewx.drivers.AbstractConfEditor):
 #                             Utility functions
 # ============================================================================
 
-
 def format_byte_to_hex(byte_seq):
     """Format a sequence of bytes as a string of space separated hex bytes.
 
@@ -1617,7 +1600,7 @@ def format_byte_to_hex(byte_seq):
 #   byte 6: CRC low byte
 #   byte 7: CRC high byte
 #
-# The CRC bytes are stripped away by the Aurora class class when validating the
+# The CRC bytes are stripped away by the Aurora class when validating the
 # inverter response. The four data bytes may represent ASCII characters, a
 # 4 byte float or some other coded value. An inverter response can be
 # represented as a 3-way tuple called a response tuple:
@@ -1675,7 +1658,7 @@ class ResponseTuple(tuple):
 if __name__ == '__main__':
 
     # python imports
-    import optparse
+    import argparse
     import sys
     import time
 
@@ -1683,57 +1666,87 @@ if __name__ == '__main__':
     import weecfg
     import weewx.units
 
-    from weeutil.weeutil import timestamp_to_string
+    from weeutil.weeutil import bcolors, timestamp_to_string
 
     def sort(rec):
         return ", ".join(["%s: %s" % (k, rec.get(k)) for k in sorted(rec,
                                                                      key=str.lower)])
 
-    usage = """sudo PYTHONPATH=/home/weewx/bin python
-               /home/weewx/bin/user/%prog [--option]"""
+    usage = f"""{bcolors.BOLD}%(prog)s
+           --version
+           --gen-packets [--config=FILENAME]
+           --get-status [--config=FILENAME]
+           --get-info [--config=FILENAME]
+           --get-readings [--config=FILENAME]
+           --get-time [--config=FILENAME]
+           --set-time [--config=FILENAME]{bcolors.ENDC}
+    """
+    description = """Interact with a Power One Aurora inverter."""
 
-    parser = optparse.OptionParser(usage=usage)
-    parser.add_option('--config', dest='config_path', type=str,
-                      metavar="CONFIG_FILE",
-                      help="Use configuration file CONFIG_FILE.")
-    parser.add_option('--version', dest='version', action='store_true',
-                      help='Display driver version.')
-    parser.add_option('--gen-packets', dest='gen', action='store_true',
-                      help='Output LOOP packets indefinitely.')
-    parser.add_option('--get-status', dest='status', action='store_true',
-                      help='Display inverter status.')
-    parser.add_option('--get-info', dest='info', action='store_true',
-                      help='Display inverter information.')
-    parser.add_option('--get-readings', dest='readings', action='store_true',
-                      help='Display current inverter readings.')
-    parser.add_option('--get-time', dest='get_time', action='store_true',
-                      help='Display current inverter date-time.')
-    parser.add_option('--set-time', dest='set_time', action='store_true',
-                      help='Set inverter date-time to the current system date-time.')
-    (options, args) = parser.parse_args()
+    parser = argparse.ArgumentParser(usage=usage,
+                                     description=description,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
 
-    if options.version:
+    parser.add_argument('--config',
+                        type=str,
+                        metavar="FILENAME",
+                        help="Use configuration file FILENAME.")
+    parser.add_argument('--version',
+                        action='store_true',
+                        help='Display driver version.')
+    parser.add_argument('--gen-packets',
+                        dest='gen',
+                        action='store_true',
+                        help='Output LOOP packets indefinitely.')
+    parser.add_argument('--get-status',
+                        dest='status',
+                        action='store_true',
+                        help='Display inverter status.')
+    parser.add_argument('--get-info',
+                        dest='info',
+                        action='store_true',
+                        help='Display inverter information.')
+    parser.add_argument('--get-readings',
+                        dest='readings',
+                        action='store_true',
+                        help='Display current inverter readings.')
+    parser.add_argument('--get-time',
+                        dest='get_time',
+                        action='store_true',
+                        help='Display current inverter date-time.')
+    parser.add_argument('--set-time',
+                        dest='set_time',
+                        action='store_true',
+                        help='Set inverter date-time to the current system date-time.')
+    namespace = parser.parse_args()
+
+    # if we have been asked for the version number we can display that now
+    if namespace.version:
         print(("Aurora driver version %s" % DRIVER_VERSION))
         exit(0)
 
-    # get config_dict to use
-    config_path, config_dict = weecfg.read_config(options.config_path, args)
-    print(("Using configuration file %s" % config_path))
+    # any other options will require an AuroraDriver object
+    # first get the config_dict to use
+    config_path, config_dict = weecfg.read_config(namespace.config)
+    print(("Using configuration file '%s'" % config_path))
 
-    # get a config dict for the inverter
-    aurora_dict = config_dict.get('Aurora', None)
+    # now get a config dict for the inverter
+    aurora_dict = config_dict.get('Aurora')
     # get an AuroraDriver object
     if aurora_dict is not None:
         inverter = AuroraDriver(aurora_dict)
     else:
-        exit_str = "'Aurora' stanza not found in config file '%s'. Exiting." % config_path
+        exit_str = "'Aurora' stanza not found in configuration file '%s'. Exiting." % config_path
         sys.exit(exit_str)
 
-    if options.gen:
+    # now we can process the other options
+    # generate loop packets
+    if namespace.gen:
         while True:
             for packet in inverter.genLoopPackets():
                 print(("LOOP:  ", timestamp_to_string(packet['dateTime']), sort(packet)))
-    elif options.status:
+    # display inverter status
+    elif namespace.status:
         response_rt = inverter.do_cmd('getState')
         print()
         print(("%s Status:" % inverter.model))
@@ -1774,8 +1787,8 @@ if __name__ == '__main__':
                                           AuroraDriver.ALARM[response_rt.data[3]]['code'])))
         else:
             print("       Alarm state: None (---)")
-
-    elif options.info:
+    # display inverter info
+    elif namespace.info:
         print()
         print("%s Information:" % inverter.model)
         print("%21s: %s" % ("Part Number", inverter.part_number))
@@ -1783,7 +1796,8 @@ if __name__ == '__main__':
         print("%21s: %s" % ("Serial Number", inverter.serial_number))
         print("%21s: %s" % ("Manufacture Date", inverter.manufacture_date))
         print("%21s: %s" % ("Firmware Release", inverter.firmware_rel))
-    elif options.readings:
+    # display current inverter readings
+    elif namespace.readings:
         print()
         print("%s Current Readings:" % inverter.model)
         print("-----------------------------------------------")
@@ -1828,14 +1842,15 @@ if __name__ == '__main__':
         print()
         print("%29s: %sA" % ('Leakage Current(Inverter)', inverter.do_cmd('getLeakC').data))
         print("%29s: %sA" % ('Leakage Current(Booster)', inverter.do_cmd('getLeakDcC').data))
-
-    elif options.get_time:
+    # display the current inverter time
+    elif namespace.get_time:
         inverter_ts = inverter.getTime()
         _error = inverter_ts - time.time()
         print()
         print("Inverter date-time is %s" % (timestamp_to_string(inverter_ts)))
         print("    Clock error is %.3f seconds (positive is fast)" % _error)
-    elif options.set_time:
+    # set the inverter time
+    elif namespace.set_time:
         inverter_ts = inverter.getTime()
         _error = inverter_ts - time.time()
         print()
