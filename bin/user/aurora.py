@@ -1062,16 +1062,7 @@ class AuroraInverter(object):
                          self.commands[command]['sub'], globall)
         elif payload is not None:
             # we have no sub-command, but we have a payload
-            # First get our payload as a tuple of ascii codes, how we do this
-            # depends on which version of python is being used. Try to use ord
-            # on each character (which works under python 2), if that fails we
-            # have a python 3 byte string and we can use the string members as
-            # they are.
-            try:
-                payload_t = tuple([ord(b) for b in payload])
-            except TypeError:
-                payload_t = tuple([b for b in payload])
-            command_t = (address, self.commands[command]['cmd']) + payload_t
+            command_t = (address, self.commands[command]['cmd']) + tuple([ord(b) for b in payload])
         else:
             # no sub-command or payload
             command_t = (address, self.commands[command]['cmd'])
