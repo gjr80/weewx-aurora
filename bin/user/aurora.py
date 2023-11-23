@@ -138,12 +138,11 @@ The options can be selected using:
 import logging
 import serial
 import struct
+import time
 
 # WeeWX imports
 import weewx.drivers
 import weewx.units
-
-from weeutil.weeutil import to_bool
 
 # get a logger object
 log = logging.getLogger(__name__)
@@ -873,13 +872,15 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
 
         _manifest = []
         _field_map = {}
-        _field_map_config = inverter_dict.get('sensor_map', AuroraDriver.DEFAULT_SENSOR_MAP)
+        _field_map_config = inverter_dict.get('sensor_map',
+                                              AuroraDriver.DEFAULT_SENSOR_MAP)
         for dest, src in _field_map_config.items():
             if src in self.inverter.commands:
                 _manifest.append(src)
                 _field_map[dest] = src
             else:
-                log.debug("Invalid inverter data field '%s' specified in config file. Field ignored." % src)
+                log.debug("Invalid inverter data field '%s' specified in "
+                          "config file. Field ignored." % src)
         return _field_map, _manifest
 
 
@@ -994,7 +995,7 @@ class AuroraInverter(object):
             raise weewx.WeeWxIOError("Expected to write %d chars; sent %d instead" % (len(data),
                                                                                       n))
 
-    def read(self, bytes=8):
+    def read(self, bytes_to_read=8):
         """Read data from the inverter.
 
         Read a given number of bytes from the inverter. If the incorrect number
@@ -1009,7 +1010,7 @@ class AuroraInverter(object):
         """
 
         try:
-            _buffer = self.serial_port.read(bytes)
+            _buffer = self.serial_port.read(bytes_to_read)
         except serial.serialutil.SerialException as e:
             log.error("SerialException on read.")
             log.error("  ***** %s" % e)
@@ -1017,8 +1018,8 @@ class AuroraInverter(object):
             # re-raise as a WeeWX error I/O error:
             raise weewx.WeeWxIOError(e)
         n = len(_buffer)
-        if n != bytes:
-            raise weewx.WeeWxIOError("Expected to read %d bytes; got %d instead" % (bytes,
+        if n != bytes_to_read:
+            raise weewx.WeeWxIOError("Expected to read %d bytes; got %d instead" % (bytes_to_read,
                                                                                     n))
         return _buffer
 
@@ -1121,7 +1122,7 @@ class AuroraInverter(object):
         log.debug("Unable to send or receive data to/from the inverter")
         raise weewx.WeeWxIOError("Unable to send or receive data to/from the inverter")
 
-    def read_with_crc(self, bytes=8):
+    def read_with_crc(self, bytes_to_read=8):
         """Read an inverter response with CRC and return the data.
 
         Read a response from the inverter, check the CRC and if valid strip the
@@ -1136,7 +1137,7 @@ class AuroraInverter(object):
         """
 
         # read the response
-        _response = self.read(bytes=bytes)
+        _response = self.read(bytes_to_read=bytes_to_read)
         # log the hex bytes received
         if weewx.debug >= 2:
             log.debug("read %s" % format_byte_to_hex(_response))
@@ -1171,7 +1172,7 @@ class AuroraInverter(object):
         # Get a Struct object so we can unpack our input string. Our input
         # could be of any length so construct our Struct format string based on
         # the length of the input string.
-        _format = ''.join(['B' for b in range(len(buf))])
+        _format = ''.join(['B' for _b in range(len(buf))])
         s = struct.Struct(_format)
         # unpack the input string into our sequence of bytes
         _bytes = s.unpack(buf)
@@ -1642,20 +1643,19 @@ class ResponseTuple(tuple):
 # Define a main entry point for basic testing without the WeeWX engine and
 # service overhead. To invoke this driver without WeeWX:
 #
-# $ sudo PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/aurora.py --option
+# $ PYTHONPATH=/home/weewxuser/weewx/src python3 ~/weewx-data/bin/user/aurora.py --option
 #
 # where option is one of the following options:
 #   --help          - display driver command line help
 #   --version       - display driver version
 #   --gen-packets   - generate LOOP packets indefinitely
 #   --get-status    - display inverter status
+#   --get-info      - display inverter information
 #   --get-readings  - display current inverter readings
 #   --get-time      - display inverter time
-#   --get-info      - display inverter information
-#
+#   --set-time      - set inverter time to the current system time
 
-
-if __name__ == '__main__':
+def main():
 
     # python imports
     import argparse
@@ -1664,22 +1664,21 @@ if __name__ == '__main__':
 
     # WeeWX imports
     import weecfg
-    import weewx.units
 
-    from weeutil.weeutil import bcolors, timestamp_to_string
+    from weeutil.weeutil import bcolors, timestamp_to_string, to_sorted_string
 
-    def sort(rec):
-        return ", ".join(["%s: %s" % (k, rec.get(k)) for k in sorted(rec,
-                                                                     key=str.lower)])
+#    def sort(rec):
+#        return ", ".join(["%s: %s" % (k, rec.get(k)) for k in sorted(rec,
+#                                                                     key=str.lower)])
 
-    usage = f"""{bcolors.BOLD}%(prog)s
-           --version
-           --gen-packets [--config=FILENAME]
-           --get-status [--config=FILENAME]
-           --get-info [--config=FILENAME]
-           --get-readings [--config=FILENAME]
-           --get-time [--config=FILENAME]
-           --set-time [--config=FILENAME]{bcolors.ENDC}
+    usage = f"""{bcolors.BOLD}%(prog)s --help
+                 --version 
+                 --gen-packets [--config=FILENAME]
+                 --get-status [--config=FILENAME]
+                 --get-info [--config=FILENAME]
+                 --get-readings [--config=FILENAME]
+                 --get-time [--config=FILENAME]
+                 --set-time [--config=FILENAME]{bcolors.ENDC}
     """
     description = """Interact with a Power One Aurora inverter."""
 
@@ -1720,10 +1719,15 @@ if __name__ == '__main__':
                         help='Set inverter date-time to the current system date-time.')
     namespace = parser.parse_args()
 
+    if len(sys.argv) == 1:
+        # we have no arguments
+        parser.print_help()
+        sys.exit(0)
+
     # if we have been asked for the version number we can display that now
     if namespace.version:
         print(("Aurora driver version %s" % DRIVER_VERSION))
-        exit(0)
+        sys.exit(0)
 
     # any other options will require an AuroraDriver object
     # first get the config_dict to use
@@ -1740,14 +1744,23 @@ if __name__ == '__main__':
         sys.exit(exit_str)
 
     # now we can process the other options
+
     # generate loop packets
     if namespace.gen:
+        # continue indefinitely
         while True:
+            # obtain a packet
             for packet in inverter.genLoopPackets():
-                print(("LOOP:  ", timestamp_to_string(packet['dateTime']), sort(packet)))
+                # and print the packet
+                print(("LOOP:  ",
+                       timestamp_to_string(packet['dateTime']),
+                       to_sorted_string(packet)))
+
     # display inverter status
     elif namespace.status:
+        # obtain the inverter state
         response_rt = inverter.do_cmd('getState')
+        # and print the state
         print()
         print(("%s Status:" % inverter.model))
         if response_rt.transmission_state is not None:
@@ -1787,6 +1800,7 @@ if __name__ == '__main__':
                                           AuroraDriver.ALARM[response_rt.data[3]]['code'])))
         else:
             print("       Alarm state: None (---)")
+
     # display inverter info
     elif namespace.info:
         print()
@@ -1796,6 +1810,7 @@ if __name__ == '__main__':
         print("%21s: %s" % ("Serial Number", inverter.serial_number))
         print("%21s: %s" % ("Manufacture Date", inverter.manufacture_date))
         print("%21s: %s" % ("Firmware Release", inverter.firmware_rel))
+
     # display current inverter readings
     elif namespace.readings:
         print()
@@ -1842,25 +1857,40 @@ if __name__ == '__main__':
         print()
         print("%29s: %sA" % ('Leakage Current(Inverter)', inverter.do_cmd('getLeakC').data))
         print("%29s: %sA" % ('Leakage Current(Booster)', inverter.do_cmd('getLeakDcC').data))
+
     # display the current inverter time
     elif namespace.get_time:
+        # obtain the inverter time
         inverter_ts = inverter.getTime()
+        # calculate the difference to system time
         _error = inverter_ts - time.time()
+        # display the results
         print()
         print("Inverter date-time is %s" % (timestamp_to_string(inverter_ts)))
         print("    Clock error is %.3f seconds (positive is fast)" % _error)
+
     # set the inverter time
     elif namespace.set_time:
+        # obtain the inverter time
         inverter_ts = inverter.getTime()
+        # calculate the difference to system time
         _error = inverter_ts - time.time()
+        # display the results
         print()
         print("Current inverter date-time is %s" % (timestamp_to_string(inverter_ts)))
         print("    Clock error is %.3f seconds (positive is fast)" % _error)
         print()
         print("Setting time...")
+        # set the iverter time to the system time
         inverter.setTime()
+        # now obtain and display the inverter time
         inverter_ts = inverter.getTime()
         _error = inverter_ts - time.time()
         print()
         print("Updated inverter date-time is %s" % (timestamp_to_string(inverter_ts)))
         print("    Clock error is %.3f seconds (positive is fast)" % _error)
+
+
+if __name__ == "__main__":
+    # start up the program
+    main()
