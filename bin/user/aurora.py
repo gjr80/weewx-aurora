@@ -1855,7 +1855,7 @@ def main():
         print("    Clock error is %.3f seconds (positive is fast)" % _error)
         print()
         print("Setting time...")
-        # set the iverter time to the system time
+        # set the inverter time to the system time
         inverter.setTime()
         # now obtain and display the inverter time
         inverter_ts = inverter.getTime()
