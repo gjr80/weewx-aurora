@@ -15,7 +15,7 @@ WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
 PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program.  If not, see http://www.gnu.org/licenses/.
+this program.  If not, see https://www.gnu.org/licenses/.
 
 Version: 0.7.0a1                                      Date: 23 November 2023
 
@@ -152,97 +152,105 @@ DRIVER_NAME = 'Aurora'
 DRIVER_VERSION = '0.7.0a1'
 
 
-# define unit groups, formats and conversions for units used by the aurora
-# driver
+def define_units():
+    """Define any unit groups, formats and conversions used by the driver.
 
-# create groups for frequency and resistance
-weewx.units.USUnits['group_frequency'] = 'hertz'
-weewx.units.MetricUnits['group_frequency'] = 'hertz'
-weewx.units.MetricWXUnits['group_frequency'] = 'hertz'
-weewx.units.USUnits['group_resistance'] = 'ohm'
-weewx.units.MetricUnits['group_resistance'] = 'ohm'
-weewx.units.MetricWXUnits['group_resistance'] = 'ohm'
+        define unit groups, formats and conversions for units used by the aurora
+        driver
 
-# set default formats and labels for frequency and resistance
-weewx.units.default_unit_format_dict['hertz'] = '%.1f'
-weewx.units.default_unit_label_dict['hertz'] = u' Hz'
-weewx.units.default_unit_format_dict['ohm'] = '%.1f'
-weewx.units.default_unit_label_dict['ohm'] = u' Ω'
-weewx.units.default_unit_format_dict['kohm'] = '%.1f'
-weewx.units.default_unit_label_dict['kohm'] = u' kΩ'
-weewx.units.default_unit_format_dict['Mohm'] = '%.1f'
-weewx.units.default_unit_label_dict['Mohm'] = u' MΩ'
+    """
 
-# define conversion functions for resistance
-weewx.units.conversionDict['ohm'] = {'kohm': lambda x: x / 1000.0,
-                                     'Mohm': lambda x: x / 1000000.0}
-weewx.units.conversionDict['kohm'] = {'ohm': lambda x: x * 1000.0,
-                                      'Mohm': lambda x: x / 1000.0}
-weewx.units.conversionDict['Mohm'] = {'ohm': lambda x: x * 1000000.0,
-                                      'kohm': lambda x: x * 1000.0}
+    # create groups for frequency and resistance
+    weewx.units.USUnits['group_frequency'] = 'hertz'
+    weewx.units.MetricUnits['group_frequency'] = 'hertz'
+    weewx.units.MetricWXUnits['group_frequency'] = 'hertz'
+    weewx.units.USUnits['group_resistance'] = 'ohm'
+    weewx.units.MetricUnits['group_resistance'] = 'ohm'
+    weewx.units.MetricWXUnits['group_resistance'] = 'ohm'
 
-# set default formats and labels for kilo and megawatt hours
-weewx.units.default_unit_format_dict['kilo_watt_hour'] = '%.1f'
-weewx.units.default_unit_label_dict['kilo_watt_hour'] = ' kWh'
-weewx.units.default_unit_format_dict['mega_watt_hour'] = '%.1f'
-weewx.units.default_unit_label_dict['mega_watt_hour'] = ' MWh'
+    # set default formats and labels for frequency and resistance
+    weewx.units.default_unit_format_dict['hertz'] = '%.1f'
+    weewx.units.default_unit_label_dict['hertz'] = u' Hz'
+    weewx.units.default_unit_format_dict['ohm'] = '%.1f'
+    weewx.units.default_unit_label_dict['ohm'] = u' Ω'
+    weewx.units.default_unit_format_dict['kohm'] = '%.1f'
+    weewx.units.default_unit_label_dict['kohm'] = u' kΩ'
+    weewx.units.default_unit_format_dict['Mohm'] = '%.1f'
+    weewx.units.default_unit_label_dict['Mohm'] = u' MΩ'
 
-# define conversion functions for energy
-weewx.units.conversionDict['watt_hour'] = {'kilo_watt_hour': lambda x: x / 1000.0,
-                                           'mega_watt_hour': lambda x: x / 1000000.0}
-weewx.units.conversionDict['kilo_watt_hour'] = {'watt_hour': lambda x: x * 1000.0,
-                                                'mega_watt_hour': lambda x: x / 1000.0}
-weewx.units.conversionDict['mega_watt_hour'] = {'watt_hour': lambda x: x * 1000000.0,
-                                                'kilo_watt_hour': lambda x: x * 1000.0}
+    # define conversion functions for resistance
+    weewx.units.conversionDict['ohm'] = {'kohm': lambda x: x / 1000.0,
+                                         'Mohm': lambda x: x / 1000000.0}
+    weewx.units.conversionDict['kohm'] = {'ohm': lambda x: x * 1000.0,
+                                          'Mohm': lambda x: x / 1000.0}
+    weewx.units.conversionDict['Mohm'] = {'ohm': lambda x: x * 1000000.0,
+                                          'kohm': lambda x: x * 1000.0}
 
-# set default formats and labels for kilo and mega watts
-weewx.units.default_unit_format_dict['kilo_watt'] = '%.1f'
-weewx.units.default_unit_label_dict['kilo_watt'] = ' kW'
-weewx.units.default_unit_format_dict['mega_watt'] = '%.1f'
-weewx.units.default_unit_label_dict['mega_watt'] = ' MW'
+    # set default formats and labels for kilo and megawatt hours
+    weewx.units.default_unit_format_dict['kilo_watt_hour'] = '%.1f'
+    weewx.units.default_unit_label_dict['kilo_watt_hour'] = ' kWh'
+    weewx.units.default_unit_format_dict['mega_watt_hour'] = '%.1f'
+    weewx.units.default_unit_label_dict['mega_watt_hour'] = ' MWh'
 
-# define conversion functions for energy
-weewx.units.conversionDict['watt'] = {'kilo_watt': lambda x: x / 1000.0,
-                                      'mega_watt': lambda x: x / 1000000.0}
-weewx.units.conversionDict['kilo_watt'] = {'watt': lambda x: x * 1000.0,
-                                           'mega_watt': lambda x: x / 1000.0}
-weewx.units.conversionDict['mega_watt'] = {'watt': lambda x: x * 1000000.0,
-                                           'kilo_watt': lambda x: x * 1000.0}
+    # define conversion functions for energy
+    weewx.units.conversionDict['watt_hour'] = {'kilo_watt_hour': lambda x: x / 1000.0,
+                                               'mega_watt_hour': lambda x: x / 1000000.0}
+    weewx.units.conversionDict['kilo_watt_hour'] = {'watt_hour': lambda x: x * 1000.0,
+                                                    'mega_watt_hour': lambda x: x / 1000.0}
+    weewx.units.conversionDict['mega_watt_hour'] = {'watt_hour': lambda x: x * 1000000.0,
+                                                    'kilo_watt_hour': lambda x: x * 1000.0}
 
-# assign database fields to groups
-weewx.units.obs_group_dict['string1Voltage'] = 'group_volt'
-weewx.units.obs_group_dict['string1Current'] = 'group_amp'
-weewx.units.obs_group_dict['string1Power'] = 'group_power'
-weewx.units.obs_group_dict['string2Voltage'] = 'group_volt'
-weewx.units.obs_group_dict['string2Current'] = 'group_amp'
-weewx.units.obs_group_dict['string2Power'] = 'group_power'
-weewx.units.obs_group_dict['gridVoltage'] = 'group_volt'
-weewx.units.obs_group_dict['gridCurrent'] = 'group_amp'
-weewx.units.obs_group_dict['gridPower'] = 'group_power'
-weewx.units.obs_group_dict['gridFrequency'] = 'group_frequency'
-weewx.units.obs_group_dict['efficiency'] = 'group_percent'
-weewx.units.obs_group_dict['inverterTemp'] = 'group_temperature'
-weewx.units.obs_group_dict['boosterTemp'] = 'group_temperature'
-weewx.units.obs_group_dict['bulkVoltage'] = 'group_volt'
-weewx.units.obs_group_dict['isoResistance'] = 'group_resistance'
-weewx.units.obs_group_dict['in1Power'] = 'group_power'
-weewx.units.obs_group_dict['in2Power'] = 'group_power'
-weewx.units.obs_group_dict['bulkmidVoltage'] = 'group_volt'
-weewx.units.obs_group_dict['bulkdcVoltage'] = 'group_volt'
-weewx.units.obs_group_dict['leakdcCurrent'] = 'group_amp'
-weewx.units.obs_group_dict['leakCurrent'] = 'group_amp'
-weewx.units.obs_group_dict['griddcVoltage'] = 'group_volt'
-weewx.units.obs_group_dict['gridavgVoltage'] = 'group_volt'
-weewx.units.obs_group_dict['gridnVoltage'] = 'group_volt'
-weewx.units.obs_group_dict['griddcFrequency'] = 'group_frequency'
-weewx.units.obs_group_dict['energy'] = 'group_energy'
+    # set default formats and labels for kilo and mega watts
+    weewx.units.default_unit_format_dict['kilo_watt'] = '%.1f'
+    weewx.units.default_unit_label_dict['kilo_watt'] = ' kW'
+    weewx.units.default_unit_format_dict['mega_watt'] = '%.1f'
+    weewx.units.default_unit_label_dict['mega_watt'] = ' MW'
+
+    # define conversion functions for energy
+    weewx.units.conversionDict['watt'] = {'kilo_watt': lambda x: x / 1000.0,
+                                          'mega_watt': lambda x: x / 1000000.0}
+    weewx.units.conversionDict['kilo_watt'] = {'watt': lambda x: x * 1000.0,
+                                               'mega_watt': lambda x: x / 1000.0}
+    weewx.units.conversionDict['mega_watt'] = {'watt': lambda x: x * 1000000.0,
+                                               'kilo_watt': lambda x: x * 1000.0}
+
+    # assign database fields to groups
+    weewx.units.obs_group_dict['string1Voltage'] = 'group_volt'
+    weewx.units.obs_group_dict['string1Current'] = 'group_amp'
+    weewx.units.obs_group_dict['string1Power'] = 'group_power'
+    weewx.units.obs_group_dict['string2Voltage'] = 'group_volt'
+    weewx.units.obs_group_dict['string2Current'] = 'group_amp'
+    weewx.units.obs_group_dict['string2Power'] = 'group_power'
+    weewx.units.obs_group_dict['gridVoltage'] = 'group_volt'
+    weewx.units.obs_group_dict['gridCurrent'] = 'group_amp'
+    weewx.units.obs_group_dict['gridPower'] = 'group_power'
+    weewx.units.obs_group_dict['gridFrequency'] = 'group_frequency'
+    weewx.units.obs_group_dict['efficiency'] = 'group_percent'
+    weewx.units.obs_group_dict['inverterTemp'] = 'group_temperature'
+    weewx.units.obs_group_dict['boosterTemp'] = 'group_temperature'
+    weewx.units.obs_group_dict['bulkVoltage'] = 'group_volt'
+    weewx.units.obs_group_dict['isoResistance'] = 'group_resistance'
+    weewx.units.obs_group_dict['in1Power'] = 'group_power'
+    weewx.units.obs_group_dict['in2Power'] = 'group_power'
+    weewx.units.obs_group_dict['bulkmidVoltage'] = 'group_volt'
+    weewx.units.obs_group_dict['bulkdcVoltage'] = 'group_volt'
+    weewx.units.obs_group_dict['leakdcCurrent'] = 'group_amp'
+    weewx.units.obs_group_dict['leakCurrent'] = 'group_amp'
+    weewx.units.obs_group_dict['griddcVoltage'] = 'group_volt'
+    weewx.units.obs_group_dict['gridavgVoltage'] = 'group_volt'
+    weewx.units.obs_group_dict['gridnVoltage'] = 'group_volt'
+    weewx.units.obs_group_dict['griddcFrequency'] = 'group_frequency'
+    weewx.units.obs_group_dict['energy'] = 'group_energy'
 
 
 def loader(config_dict, engine):
+
+    define_units()
     return AuroraDriver(config_dict[DRIVER_NAME])
 
 
 def confeditor_loader():
+
     return AuroraConfEditor()
 
 
@@ -263,32 +271,69 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
     """Class representing connection to Aurora inverter."""
 
     # default sensor map
-    DEFAULT_SENSOR_MAP = {'timeDate': 'getTimeDate',
-                          'string1Voltage': 'getStr1V',
-                          'string1Current': 'getStr1C',
-                          'string1Power': 'getStr1P',
-                          'string2Voltage': 'getStr2V',
-                          'string2Current': 'getStr2C',
-                          'string2Power': 'getStr2P',
-                          'gridVoltage': 'getGridV',
-                          'gridCurrent': 'getGridC',
-                          'gridPower': 'getGridP',
-                          'gridFrequency': 'getFrequency',
-                          'inverterTemp': 'getInverterT',
-                          'boosterTemp': 'getBoosterT',
-                          'bulkVoltage': 'getBulkV',
-                          'isoResistance': 'getIsoR',
-                          'bulkmidVoltage': 'getBulkMidV',
-                          'bulkdcVoltage': 'getBulkDcV',
-                          'leakdcCurrent': 'getLeakDcC',
-                          'leakCurrent': 'getLeakC',
-                          'griddcVoltage': 'getGridDcV',
-                          'gridavgVoltage': 'getGridAvV',
-                          'gridnVoltage': 'getPeakP',
-                          'griddcFrequency': 'getGridDcFreq',
-                          'dayEnergy': 'getDayEnergy'
+    DEFAULT_SENSOR_MAP = {'inverterDateTime': 'inverterDateTime',
+                          'string1Voltage': 'str1V',
+                          'string1Current': 'str1C',
+                          'string1Power': 'str1P',
+                          'string2Voltage': 'str2V',
+                          'string2Current': 'str2C',
+                          'string2Power': 'str2P',
+                          'gridVoltage': 'gridV',
+                          'gridCurrent': 'gridC',
+                          'gridPower': 'gridP',
+                          'gridFrequency': 'frequency',
+                          'inverterTemp': 'inverterT',
+                          'boosterTemp': 'boosterT',
+                          'bulkVoltage': 'bulkV',
+                          'isoResistance': 'isoR',
+                          'bulkmidVoltage': 'bulkMidV',
+                          'bulkdcVoltage': 'bulkDcV',
+                          'leakdcCurrent': 'leakDcC',
+                          'leakCurrent': 'leakC',
+                          'griddcVoltage': 'gridDcV',
+                          'gridavgVoltage': 'gridAvV',
+                          'gridnVoltage': 'gridNV',
+                          'griddcFrequency': 'gridDcFreq',
+                          'dayEnergy': 'dayEnergy',
+                          'weekEnergy': 'weekEnergy',
+                          'monthEnergy': 'monthEnergy',
+                          'yearEnergy': 'yearEnergy',
+                          'totalEnergy': 'totalEnergy',
+                          'partialEnergy': 'partialEnergy'
                           }
 
+    # lookup table used to determine inverter command to be used for each raw
+    # data packet field
+    SENSOR_LOOKUP = {'inverterDateTime': 'getTimeDate',
+                     'str1V': 'getStr1V',
+                     'str1C': 'getStr1C',
+                     'str1P': 'getStr1P',
+                     'str2V': 'getStr2V',
+                     'str2C': 'getStr2C',
+                     'str2P': 'getStr2P',
+                     'gridV': 'getGridV',
+                     'gridC': 'getGridC',
+                     'gridP': 'getGridP',
+                     'frequency': 'getFrequency',
+                     'inverterT': 'getInverterT',
+                     'boosterT': 'getBoosterT',
+                     'bulkV': 'getBulkV',
+                     'isoR': 'getIsoR',
+                     'bulkMidV': 'getBulkMidV',
+                     'bulkDcV': 'getBulkDcV',
+                     'leakDcC': 'getLeakDcC',
+                     'leakC': 'getLeakC',
+                     'gridDcV': 'getGridDcV',
+                     'gridAvV': 'getGridAvV',
+                     'gridNV': 'getGridNV',
+                     'gridDcFreq': 'getGridDcFreq',
+                     'dayEnergy': 'getDayEnergy',
+                     'weekEnergy': 'getWeekEnergy',
+                     'monthEnergy': 'getMonthEnergy',
+                     'yearEnergy': 'getYearEnergy',
+                     'totalEnergy': 'getTotalEnergy',
+                     'partialEnergy': 'getPartialEnergy'
+                     }
     # transmission state code map
     TRANSMISSION = {0: 'Everything is OK',
                     51: 'Command is not implemented',
@@ -481,31 +526,31 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
              64: {'description': 'Jbox fail',         'code': 'W017'}
              }
 
-    def __init__(self, aurora_dict):
+    def __init__(self, inverter_dict):
         """Initialise an object of type AuroroaDriver."""
 
         # model
-        self.model = aurora_dict.get('model', 'Aurora')
+        self.model = inverter_dict.get('model', 'Aurora')
         log.debug('%s driver version is %s' % (self.model, DRIVER_VERSION))
         # serial comms options
         try:
-            port = aurora_dict.get('port', '/dev/ttyUSB0')
+            port = inverter_dict.get('port', '/dev/ttyUSB0')
         except KeyError:
             raise Exception("Required parameter 'port' was not specified.")
-        baudrate = int(aurora_dict.get('baudrate', 19200))
-        timeout = float(aurora_dict.get('timeout', 2.0))
-        wait_before_retry = float(aurora_dict.get('wait_before_retry', 1.0))
-        command_delay = float(aurora_dict.get('command_delay', 0.05))
+        baudrate = int(inverter_dict.get('baudrate', 19200))
+        timeout = float(inverter_dict.get('timeout', 2.0))
+        wait_before_retry = float(inverter_dict.get('wait_before_retry', 1.0))
+        command_delay = float(inverter_dict.get('command_delay', 0.05))
         log.debug('   using port %s baudrate %d timeout %s' % (port,
                                                                baudrate,
                                                                timeout))
         log.debug('   wait_before_retry %s command_delay %s' % (wait_before_retry,
                                                                 command_delay))
         # driver options
-        self.max_command_tries = int(aurora_dict.get('max_command_tries', 3))
-        self.polling_interval = int(aurora_dict.get('loop_interval', 10))
-        self.address = int(aurora_dict.get('address', 2))
-        self.max_loop_tries = int(aurora_dict.get('max_loop_tries', 3))
+        self.max_command_tries = int(inverter_dict.get('max_command_tries', 3))
+        self.polling_interval = int(inverter_dict.get('loop_interval', 10))
+        self.address = int(inverter_dict.get('address', 2))
+        self.max_loop_tries = int(inverter_dict.get('max_loop_tries', 3))
         log.debug('   inverter address %d will be polled every %d seconds' % (self.address,
                                                                               self.polling_interval))
         log.debug('   max_command_tries %d max_loop_tries %d' % (self.max_command_tries,
@@ -526,14 +571,14 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         # initialise last energy value
         self.last_energy = None
 
-        # Build the manifest of readings to be included in the loop packet.
-        # Build the Aurora reading to loop packet field map.
-        (self.field_map, self.manifest) = self._build_map_manifest(aurora_dict)
-        log.info('sensor_map=%s' % (self.field_map,))
+        # get the sensor map
+        self.sensor_map = inverter_dict.get('sensor_map',
+                                            AuroraDriver.DEFAULT_SENSOR_MAP)
+        log.info('sensor_map=%s' % (self.sensor_map,))
         # build a 'none' packet to use when the inverter is offline
         self.none_packet = {}
-        for src in self.manifest:
-            self.none_packet[src] = None
+        for field in AuroraDriver.SENSOR_LOOKUP:
+            self.none_packet[field] = None
 
     def openPort(self):
         """Open the connection to the inverter."""
@@ -583,13 +628,16 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                         # usUnits - set to METRIC
                         packet['usUnits'] = weewx.METRIC
 
-                        # energy - derive from dayEnergy
-                        # dayEnergy is cumulative by day, but we need
+                        # dayEnergy is cumulative by day but we need
                         # incremental values so we need to calculate it based
                         # on the last cumulative value
-                        packet['energy'] = self.calculate_energy(packet['dayEnergy'],
-                                                                 self.last_energy)
-                        self.last_energy = packet['dayEnergy'] if 'dayEnergy' in packet else None
+                        if 'dayEnergy' in packet:
+                            packet['energy'] = self.calculate_energy(packet['dayEnergy'],
+                                                                     self.last_energy)
+                            self.last_energy = packet['dayEnergy']
+                        else:
+                            packet['energy'] = None
+                            self.last_energy = None
 
                         if weewx.debug >= 2:
                             log.debug("genLoopPackets: received loop packet: %s" % packet)
@@ -610,16 +658,16 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
 
         _packet = {}
         # iterate over each reading we need to get
-        for reading in self.manifest:
+        for field, command in AuroraDriver.SENSOR_LOOKUP.items():
             # get the reading
-            _response = self.do_cmd(reading)
+            _response = self.do_cmd(command)
             # If the inverter is running set the running property and save the
             # data. If the inverter is asleep set the running property only,
             # there will be no data.
             if _response.global_state == 6:
                 # inverter is running
                 self.running = True
-                _packet[reading] = _response.data
+                _packet[field] = _response.data
             else:
                 # inverter is asleep
                 self.running = False
@@ -639,7 +687,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
 
         # map raw packet readings to loop packet fields using the field map
         _packet = {}
-        for dest, src in self.field_map.items():
+        for dest, src in self.sensor_map.items():
             if src in raw_packet:
                 _packet[dest] = raw_packet[src]
                 # apply any special processing that may be required
@@ -650,8 +698,6 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                     except TypeError:
                         # field is not numeric so leave it
                         pass
-            else:
-                _packet[dest] = None
         return _packet
 
     def do_cmd(self, command, payload=None, globall=0):
@@ -750,45 +796,6 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                 log.error("  ***** global state=%d (%s)" % (_response.global_state,
                                                             AuroraDriver.GLOBAL[_response.global_state]))
 
-    def get_cumulated_energy(self, period=None):
-        """Get 'cumulated' energy readings.
-
-        Returns a dict with value for one or more periods. Valid dict keys are:
-            'day'
-            'week'
-            'month'
-            'year'
-            'total'
-            'partial'
-
-        Input:
-            period: Specify a single period for which cumulated energy is
-                    required. If None or omitted cumulated values for all
-                    periods will be returned. String, must be one of the above
-                    dict keys, may be None. Default is None.
-        Returns:
-            Dict of requested cumulated energy values. If an invalid period is
-            passed in then None is returned.
-        """
-
-        manifest = {'day': 'dayEnergy',
-                    'week': 'weekEnergy',
-                    'month': 'monthEnergy',
-                    'year': 'yearEnergy',
-                    'total': 'totalEnergy',
-                    'partial': 'partialEnergy'
-                    }
-
-        _energy = {}
-        if period is None:
-            for _period, _reading in manifest.items():
-                _energy[_period] = self.do_cmd(_reading).data
-        elif period in manifest:
-            _energy[period] = self.do_cmd(period).data
-        else:
-            _energy = None
-        return _energy
-
     def get_last_alarms(self):
         """Get the last four alarms."""
 
@@ -850,42 +857,9 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                 delta = newtotal - oldtotal
         return delta
 
-    def _build_map_manifest(self, inverter_dict):
-        """Build a field map and command manifest.
-
-        Build a dict mapping Aurora readings to loop packet fields. Also builds
-        a dict of commands to be used to obtain raw loop data from the
-        inverter.
-
-        Input:
-            inverter_dict: An inverter config dict
-
-        Returns:
-            Tuple consisting of (field_map, manifest) where:
-
-            field_map:  A is a dict mapping Aurora readings to loop packet
-                        fields.
-            manifest:   A dict of inverter readings and their associated
-                        command parameters to be used as the raw data used as
-                        the basis for a loop packet.
-        """
-
-        _manifest = []
-        _field_map = {}
-        _field_map_config = inverter_dict.get('sensor_map',
-                                              AuroraDriver.DEFAULT_SENSOR_MAP)
-        for dest, src in _field_map_config.items():
-            if src in self.inverter.commands:
-                _manifest.append(src)
-                _field_map[dest] = src
-            else:
-                log.debug("Invalid inverter data field '%s' specified in "
-                          "config file. Field ignored." % src)
-        return _field_map, _manifest
-
 
 # ============================================================================
-#                               class Aurora
+#                            class AuroraInverter
 # ============================================================================
 
 class AuroraInverter(object):
@@ -1015,7 +989,7 @@ class AuroraInverter(object):
             log.error("SerialException on read.")
             log.error("  ***** %s" % e)
             log.error("  ***** Is there a competing process running??")
-            # re-raise as a WeeWX error I/O error:
+            # re-raise as a WeeWX I/O error:
             raise weewx.WeeWxIOError(e)
         n = len(_buffer)
         if n != bytes_to_read:
@@ -1664,12 +1638,9 @@ def main():
 
     # WeeWX imports
     import weecfg
+    import weewx.units
 
     from weeutil.weeutil import bcolors, timestamp_to_string, to_sorted_string
-
-#    def sort(rec):
-#        return ", ".join(["%s: %s" % (k, rec.get(k)) for k in sorted(rec,
-#                                                                     key=str.lower)])
 
     usage = f"""{bcolors.BOLD}%(prog)s --help
                  --version 
@@ -1733,6 +1704,9 @@ def main():
     # first get the config_dict to use
     config_path, config_dict = weecfg.read_config(namespace.config)
     print(("Using configuration file '%s'" % config_path))
+
+    # define custom units settings
+    define_units()
 
     # now get a config dict for the inverter
     aurora_dict = config_dict.get('Aurora')
