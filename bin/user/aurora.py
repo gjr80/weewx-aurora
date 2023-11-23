@@ -164,13 +164,13 @@ weewx.units.MetricWXUnits['group_resistance'] = 'ohm'
 
 # set default formats and labels for frequency and resistance
 weewx.units.default_unit_format_dict['hertz'] = '%.1f'
-weewx.units.default_unit_label_dict['hertz'] = ' Hz'
+weewx.units.default_unit_label_dict['hertz'] = u' Hz'
 weewx.units.default_unit_format_dict['ohm'] = '%.1f'
-weewx.units.default_unit_label_dict['ohm'] = ' \xce\xa9'
+weewx.units.default_unit_label_dict['ohm'] = u' Ω'
 weewx.units.default_unit_format_dict['kohm'] = '%.1f'
-weewx.units.default_unit_label_dict['kohm'] = ' k\xce\xa9'
+weewx.units.default_unit_label_dict['kohm'] = u' kΩ'
 weewx.units.default_unit_format_dict['Mohm'] = '%.1f'
-weewx.units.default_unit_label_dict['Mohm'] = ' M\xce\xa9'
+weewx.units.default_unit_label_dict['Mohm'] = u' MΩ'
 
 # define conversion functions for resistance
 weewx.units.conversionDict['ohm'] = {'kohm': lambda x: x / 1000.0,
