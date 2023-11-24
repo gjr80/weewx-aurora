@@ -153,24 +153,26 @@ DRIVER_VERSION = '0.7.0a1'
 
 
 def define_units():
-    """Define any unit groups, formats and conversions used by the driver.
+    """Define unit groups, formats and conversions used by the driver.
 
-        define unit groups, formats and conversions for units used by the aurora
-        driver
-
+    Define unit groups, conversions and default formats for units used by the
+    aurora driver. This could be done in user/extensions.py or the driver,
+    user/extensions.py will make the groups, conversions and formats available
+    for all drivers and services but requires manual editing of the file by the
+    user. Inclusion in the driver removes the need for the user to edit
+    extensions.py, but means the groups, conversions and formats are only
+    defined when the aurora driver is being used. Given the specialised nature
+    of the groups, conversions and formats the latter is an acceptable
+    approach. In any case there is nothing preventing the user manually adding
+    these entries to extensions.py.
     """
 
-    # create groups for frequency and resistance
-    weewx.units.USUnits['group_frequency'] = 'hertz'
-    weewx.units.MetricUnits['group_frequency'] = 'hertz'
-    weewx.units.MetricWXUnits['group_frequency'] = 'hertz'
+    # create group for resistance
     weewx.units.USUnits['group_resistance'] = 'ohm'
     weewx.units.MetricUnits['group_resistance'] = 'ohm'
     weewx.units.MetricWXUnits['group_resistance'] = 'ohm'
 
-    # set default formats and labels for frequency and resistance
-    weewx.units.default_unit_format_dict['hertz'] = '%.1f'
-    weewx.units.default_unit_label_dict['hertz'] = u' Hz'
+    # set default formats and labels for resistance
     weewx.units.default_unit_format_dict['ohm'] = '%.1f'
     weewx.units.default_unit_label_dict['ohm'] = u' Ω'
     weewx.units.default_unit_format_dict['kohm'] = '%.1f'
@@ -243,11 +245,23 @@ def define_units():
     weewx.units.obs_group_dict['energy'] = 'group_energy'
 
 
-def loader(config_dict, engine):
+# ============================================================================
+#                 Aurora Loader/Configurator/Editor methods
+# ============================================================================
 
+def loader(config_dict, engine):
+    """Loader used to load the driver."""
+
+    # first define unit groups, conversions and default formats for units used
+    # by the aurora driver
     define_units()
+    # return an AuroraDriver object
     return AuroraDriver(config_dict[DRIVER_NAME])
 
+def configurator_loader(config_dict):
+    """Configurator used by weectl device."""
+
+    return AuroraConfigurator()
 
 def confeditor_loader():
 
@@ -1524,10 +1538,94 @@ class AuroraInverter(object):
 
 
 # ============================================================================
-#                          Class AuroraConfEditor
+#                          Class AuroraConfigurator
+# ============================================================================
+
+class AuroraConfigurator(weewx.drivers.AbstractConfigurator):
+    """Configures the Aurora inverter.
+
+    This class is used by weectl device when interrogating an Aurora inverter.
+
+    The Ecowitt gateway device API supports both reading and setting various
+    gateway device parameters; however, at this time the Ecowitt gateway
+    device driver only supports the reading these parameters. The Ecowitt
+    gateway device driver does not support setting these parameters, rather
+    this should be done via the Ecowitt WSView Plus app.
+
+    When used with weectl device this configurator allows inverter parameters
+    to be displayed. The Aurora driver may also be run directly to test the
+    Aurora driver operation as well as display various driver configuration
+    options (as distinct from inverter hardware parameters).
+    """
+
+    @property
+    def description(self):
+        """Description displayed as part of weectl device help information."""
+
+        return "Read data and configuration from an Aurora inverter."
+
+    @property
+    def usage(self):
+        """weectl device usage information."""
+
+        return """%prog --help"""
+
+    @property
+    def epilog(self):
+        """Epilog displayed as part of weectl device help information."""
+
+        return ""
+        # return "Mutating actions will request confirmation before proceeding.\n"
+
+    def add_options(self, parser):
+        """Define weectl device argument parser options."""
+
+        parser.add_option('--live-data', dest='live', action='store_true',
+                          help='display live inverter data')
+        parser.add_option('--max-tries', dest='max_tries', type=int,
+                          help='max number of attempts to contact the inverter')
+        parser.add_option('--retry-wait', dest='retry_wait', type=int,
+                          help='how long to wait between attempts to contact the inverter')
+        parser.add_option('--units', dest='units', metavar='UNITS', default='metric',
+                          help='unit system to use when displaying live data')
+        parser.add_option('--config', dest='config_path', metavar='CONFIG_FILE',
+                          help="use configuration file CONFIG_FILE.")
+        parser.add_option('--debug', dest='debug', type=int,
+                          help='how much status to display, 0-3')
+        parser.add_option('--yes', '-y', dest="noprompt", action="store_true",
+                          help="answer yes to every prompt")
+
+    def do_options(self, options, parser, config_dict, prompt):
+        """Process weectl device option parser options."""
+
+        # get station config dict to use
+        stn_dict = config_dict.get('Aurora', {})
+
+        # set weewx.debug as necessary
+        if options.debug is not None:
+            _debug = weeutil.weeutil.to_int(options.debug)
+        else:
+            _debug = weeutil.weeutil.to_int(config_dict.get('debug', 0))
+        weewx.debug = _debug
+        # inform the user if the debug level is 'higher' than 0
+        if _debug > 0:
+            print("debug level is '%d'" % _debug)
+
+        # now we can set up the user customized logging
+        weeutil.logger.setup('weewx', config_dict)
+
+        # get anAurora driver object
+        aurora = AuroraDriver(options, parser, stn_dict)
+        # now let the DirectGateway object process the options
+        aurora.process_options()
+
+
+# ============================================================================
+#                           Class AuroraConfEditor
 # ============================================================================
 
 class AuroraConfEditor(weewx.drivers.AbstractConfEditor):
+    """Config editor for the Aurora driver."""
 
     @property
     def default_stanza(self):
