@@ -706,7 +706,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         Inputs:
             command: One of the commands from the command vocabulary of the
                      AuroraInverter object, AuroraInverter.commands. String.
-            globall: Global (globall=1) or Module (globall=0) measurements.
+            global_mode: Global (global_mode=1) or Module (global_mode=0) measurements.
 
         Returns:
             Response Tuple with the inverters response to the command. If no
@@ -1002,11 +1002,12 @@ class AuroraInverter(object):
         """Send a command with CRC to the inverter and return the response.
 
         Inputs:
-            command:    The inverter command being issued. String.
+            command:    The inverter command being issued, eg 'getGridV'.
+                        String.
             payload:    Data to be sent to the inverter as part of the command.
                         Will occupy part or all of bytes 2,3,4,5,6 and 7.
                         Currently only used by setTime. String.
-            globall:
+            global_mode:
             address:    The inverter address to be used, normally 2.
             max_tries:  The maximum number of attempts to send the data before
                         an error is raised.
@@ -1015,30 +1016,14 @@ class AuroraInverter(object):
             The decoded inverter response to the command as a Response Tuple.
         """
 
-        # get the applicable command codes etc
-        if self.commands[command]['sub'] is not None:
-            # we have a sub-command
-            command_t = (address, self.commands[command]['cmd'],
-                         self.commands[command]['sub'], globall)
-        elif payload is not None:
-            # we have no sub-command, but we have a payload
-            command_t = (address, self.commands[command]['cmd']) + tuple([ord(b) for b in payload])
-        else:
-            # no sub-command or payload
-            command_t = (address, self.commands[command]['cmd'])
-        # assemble our command
-        s = struct.Struct('%dB' % len(command_t))
-        _b = s.pack(*[b for b in command_t])
-        # pad the command to 8 bytes
-        _b_padded = self.pad(_b, 8)
-        # add the CRC
-        _data_with_crc = _b_padded + self.word2struct(self.crc16(_b_padded))
+        # get the command message to be sent including CRC
+        _command_bytes_crc = self.construct_cmd_message(command, payload, globall, address)
         # now send the assembled command retrying up to max_tries times
         for count in range(max_tries):
             if weewx.debug >= 2:
-                log.debug("send_cmd_with_crc: sent %s" % format_byte_to_hex(_data_with_crc))
+                log.debug("send_cmd_with_crc: sent %s" % format_byte_to_hex(_command_bytes_crc))
             try:
-                self.write(_data_with_crc)
+                self.write(_command_bytes_crc)
                 # wait before reading
                 time.sleep(self.command_delay)
                 # look for the response
@@ -1199,24 +1184,71 @@ class AuroraInverter(object):
         b = s.pack(i & 0xff, i // 256)
         return b
 
-    @staticmethod
-    def pad(buf, size):
-        """Pad a string with nulls.
+    def construct_cmd_message(self, command, payload=None, global_mode=0, address=2):
+        """Construct the byte sequence for a command.
 
-        Pad a string with nulls to make it a given size. If the string to be
-        padded is longer than size then an exception is raised.
+        The inverter communications protocol uses fixed length transmission
+        messages of 10 bytes. Each message is structured as follows:
+
+        byte 0: inverter address
+        byte 1: command code
+        byte 2: byte 2
+        byte 3: byte 3
+        byte 4: byte 4
+        byte 5: byte 5
+        byte 6: byte 6
+        byte 7: byte 7
+        byte 8: CRC low byte
+        byte 9: CRC high byte
+
+        Bytes 2 to 7 inclusive are used with some command codes to represent a
+        sub-command and/or command payload. Unused bytes can be anything, but
+        in this implementation they are padded with 0x00.
 
         Inputs:
-            buff: The string to be padded
-            size: The length of the padded string
+            command:     The inverter command being issued, eg 'getGridV'. Must
+                         be a key to the AuroraInverter.commands dict.
+                         Mandatory, string.
+            payload:     Data to be sent to the inverter as part of the command.
+                         Will occupy part or all of bytes 2, 3, 4, 5, 6 and 7.
+                         Optional, bytestring. (currently only used by setTime)
+            global_mode: Whether to return module energy (master or slave) (0)
+                         or global energy (master) (1). Optional, integer 0 or
+                         1, default 0.
+            address:     The inverter address to be used. Optional,
+                         integer 0-63, default is 2.
 
         Returns:
-            A padded string of length size.
+            A bytes object (aka bytestring) containing the command message.
         """
+        # TODO. global_mode should not be here as it is only used with the #59 command
 
-        if len(buf) > size:
-            raise DataFormatError("pad: string to be padded must be <= %d characters in length" % size)
-        return buf + b'\x00' * (size - len(buf))
+        # construct a tuple of the bytes we are to send, starting with byte 0,
+        # ending with byte 9
+
+        # do we have a sub-command
+        if self.commands[command]['sub'] is not None:
+            # we have a sub-command, construct the tuple
+            command_t = (address,
+                         self.commands[command]['cmd'],
+                         self.commands[command]['sub'],
+                         global_mode)
+        elif payload is not None:
+            # We have no sub-command, but we have a payload. As the payload is
+            # a bytestring we can convert the payload to a tuple with a simple
+            # list comprehension
+            payload_t = tuple([b for b in payload])
+            command_t = (address, self.commands[command]['cmd']) + payload_t
+        else:
+            # we have no sub-command or payload
+            command_t = (address, self.commands[command]['cmd'])
+        # pad out the tuple with 0s until it's length is 8 (10 bytes - 2 bytes
+        # for CRC)
+        padded_command_t = command_t + (0,) * (8 - len(command_t))
+        # create a bytes object by packing our command tuple items
+        command_bytes = struct.pack('8B', *padded_command_t)
+        # add the CRC
+        return command_bytes + self.word2struct(self.crc16(command_bytes))
 
     @staticmethod
     def _dec_state(v):
