@@ -141,6 +141,7 @@ import struct
 import time
 
 # WeeWX imports
+import weeutil
 import weewx.drivers
 import weewx.units
 
@@ -541,7 +542,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
              }
 
     def __init__(self, inverter_dict):
-        """Initialise an object of type AuroroaDriver."""
+        """Initialise an object of type AuroraDriver."""
 
         # model
         self.model = inverter_dict.get('model', 'Aurora')
@@ -1562,44 +1563,76 @@ class AuroraConfigurator(weewx.drivers.AbstractConfigurator):
     def description(self):
         """Description displayed as part of weectl device help information."""
 
-        return "Read data and configuration from an Aurora inverter."
+        return "Configuration utility for an Aurora inverter."
 
     @property
     def usage(self):
         """weectl device usage information."""
 
-        return """%prog --help"""
+        return """%prog --help
+       %prog --version 
+       %prog --live-data [FILENAME|--config=FILENAME]
+       %prog --gen-packets [FILENAME|--config=FILENAME]
+       %prog --status [FILENAME|--config=FILENAME]
+       %prog --info [FILENAME|--config=FILENAME]
+       %prog --time [FILENAME|--config=FILENAME]
+       %prog --set-time [FILENAME|--config=FILENAME]"""
 
     @property
     def epilog(self):
         """Epilog displayed as part of weectl device help information."""
 
-        return ""
-        # return "Mutating actions will request confirmation before proceeding.\n"
+        return "Be sure to stop weewxd first before using. Mutating actions will request " \
+               "confirmation before proceeding.\n"
 
     def add_options(self, parser):
-        """Define weectl device argument parser options."""
+        """Define weectl device parser options."""
 
-        parser.add_option('--live-data', dest='live', action='store_true',
-                          help='display live inverter data')
-        parser.add_option('--max-tries', dest='max_tries', type=int,
-                          help='max number of attempts to contact the inverter')
-        parser.add_option('--retry-wait', dest='retry_wait', type=int,
-                          help='how long to wait between attempts to contact the inverter')
-        parser.add_option('--units', dest='units', metavar='UNITS', default='metric',
-                          help='unit system to use when displaying live data')
-        parser.add_option('--config', dest='config_path', metavar='CONFIG_FILE',
-                          help="use configuration file CONFIG_FILE.")
-        parser.add_option('--debug', dest='debug', type=int,
-                          help='how much status to display, 0-3')
-        parser.add_option('--yes', '-y', dest="noprompt", action="store_true",
-                          help="answer yes to every prompt")
+        super(AuroraConfigurator, self).add_options(parser)
+        if parser.has_option('-y'):
+            parser.remove_option('-y')
+        parser.add_option('--version',
+                          action='store_true',
+                          help='Display driver version.')
+        parser.add_option('--live-data',
+                          dest='live',
+                          action='store_true',
+                          help='Display live inverter data.')
+        parser.add_option('--gen-packets',
+                          dest='gen',
+                          action='store_true',
+                          help='Output LOOP packets indefinitely.')
+        parser.add_option('--status',
+                          dest='status',
+                          action='store_true',
+                          help='Display inverter status.')
+        parser.add_option('--info',
+                          dest='info',
+                          action='store_true',
+                          help='Display inverter information.')
+        parser.add_option('--time',
+                          dest='get_time',
+                          action='store_true',
+                          help='Display current inverter date-time.')
+        parser.add_option('--set-time',
+                          dest='set_time',
+                          action='store_true',
+                          help='Set inverter date-time to the current system date-time.')
 
     def do_options(self, options, parser, config_dict, prompt):
         """Process weectl device option parser options."""
 
+        import sys
+
         # get station config dict to use
         stn_dict = config_dict.get('Aurora', {})
+
+        # we can process the --version option now if required
+        if options.version:
+            # we don't actually have to do anything as 'weectl device' prints
+            # the driver version as the last thing before the configurator
+            # takes over. So just exist.
+            sys.exit(0)
 
         # set weewx.debug as necessary
         if options.debug is not None:
@@ -1615,9 +1648,21 @@ class AuroraConfigurator(weewx.drivers.AbstractConfigurator):
         weeutil.logger.setup('weewx', config_dict)
 
         # get anAurora driver object
-        aurora = AuroraDriver(options, parser, stn_dict)
-        # now let the DirectGateway object process the options
-        aurora.process_options()
+        aurora = AuroraDriver(stn_dict)
+        if options.live:
+            pass
+        elif options.gen:
+            pass
+        elif options.status:
+            pass
+        elif options.info:
+            pass
+        elif options.get_time:
+            pass
+        elif options.set_time:
+            pass
+        else:
+            pass
 
 
 # ============================================================================
