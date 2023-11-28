@@ -10,7 +10,7 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 
                      Installer for Aurora inverter driver
 
-Version: 0.6.1                                      Date: 12 March 2020
+Version: 0.7.0                                      Date: 28 November 2023
 
 Revision History
     12 March 2020       v0.6.1
@@ -25,14 +25,49 @@ Revision History
         - initial implementation as an extension
 """
 
-import weewx
+# python imports
+import configobj
 
 from distutils.version import StrictVersion
+from io import StringIO
+
+# WeeWX imports
+import weewx
+
 from setup import ExtensionInstaller
 
-REQUIRED_VERSION = "4.0.0"
-AURORA_VERSION = "0.6.1"
+REQUIRED_VERSION = "5.0.0b1"
+AURORA_VERSION = "0.7.0a1"
 
+aurora_config = """
+[Aurora]
+    # This section is for the Ecowitt Gateway driver.
+
+    # inverter model number
+    model = replace_me
+    
+    # port to use to contact the inverter
+    port = replace_me
+    
+    # the inverter address, default is 2
+    address = 2
+    
+    # how many times to try to attempt the inverter before giving up
+    max_tries = 3
+    
+    # how often to poll the inverter, default is every 20 seconds
+    loop_interval = 10
+    
+    # the driver to use
+    driver = user.aurora
+
+[Accumulator]
+    [[energy]]
+        extractor = sum
+"""
+
+# construct our config dict
+aurora_config = configobj.ConfigObj(StringIO(aurora_config))
 
 def loader():
     return AuroraInstaller()
@@ -41,7 +76,7 @@ def loader():
 class AuroraInstaller(ExtensionInstaller):
     def __init__(self):
         if StrictVersion(weewx.__version__) < StrictVersion(REQUIRED_VERSION):
-            msg = "%s requires weeWX %s or greater, found %s" % ('Aurora driver ' + AURORA_VERSION,
+            msg = "%s requires WeeWX %s or greater, found %s" % ('Aurora driver ' + AURORA_VERSION,
                                                                  REQUIRED_VERSION,
                                                                  weewx.__version__)
             raise weewx.UnsupportedFeature(msg)
@@ -51,5 +86,6 @@ class AuroraInstaller(ExtensionInstaller):
             description='WeeWX driver for Power One Aurora inverters.',
             author="Gary Roderick",
             author_email="gjroderick@gmail.com",
-            files=[('bin/user', ['bin/user/aurora.py', 'bin/user/aurora_schema.py'])]
+            files=[('bin/user', ['bin/user/aurora.py', 'bin/user/aurora_schema.py'])],
+            config=aurora_config
         )
