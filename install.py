@@ -39,7 +39,7 @@ from setup import ExtensionInstaller
 REQUIRED_VERSION = "5.0.0b1"
 AURORA_VERSION = "0.7.0a1"
 
-aurora_config = """
+aurora_config_str = """
 [Aurora]
     # This section is for the Ecowitt Gateway driver.
 
@@ -67,7 +67,7 @@ aurora_config = """
 """
 
 # construct our config dict
-aurora_config = configobj.ConfigObj(StringIO(aurora_config))
+aurora_config = configobj.ConfigObj(StringIO(aurora_config_str))
 
 def loader():
     return AuroraInstaller()
