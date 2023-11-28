@@ -1813,7 +1813,6 @@ def main():
 
     # WeeWX imports
     import weecfg
-    import weewx.units
 
     from weeutil.weeutil import bcolors, timestamp_to_string, to_sorted_string
 
