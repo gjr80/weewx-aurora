@@ -544,7 +544,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
              64: {'description': 'Jbox fail',         'code': 'W017'}
              }
 
-    def __init__(self, inverter_dict):
+    def __init__(self, **inverter_dict):
         """Initialise an object of type AuroraDriver."""
 
         # model
@@ -571,7 +571,6 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                                                                              self.polling_interval))
         log.info('   max_command_tries %d max_loop_tries %d' % (self.max_command_tries,
                                                                 self.max_loop_tries))
-
         # get an AuroraInverter object
         self.inverter = AuroraInverter(port,
                                        baudrate=baudrate,
@@ -580,13 +579,10 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                                        command_delay=command_delay)
         # open up the connection to the inverter
         self.openPort()
-
         # is the inverter running ie global state '6' (Run)
         self.running = self.do_cmd('getState').global_state == 6
-
         # initialise last energy value
         self.last_energy = None
-
         # get the sensor map
         self.sensor_map = inverter_dict.get('sensor_map',
                                             AuroraDriver.DEFAULT_SENSOR_MAP)
@@ -1649,7 +1645,7 @@ class AuroraConfigurator(weewx.drivers.AbstractConfigurator):
         weeutil.logger.setup('weewx', config_dict)
 
         # get anAurora driver object
-        aurora = AuroraDriver(stn_dict)
+        aurora = AuroraDriver(**stn_dict)
         if options.live:
             pass
         elif options.gen:
@@ -1786,6 +1782,288 @@ class ResponseTuple(tuple):
         return self[2]
 
 
+class DirectAurora(object):
+    """Class to interact with an Aurora inverter driver when run directly.
+
+    Would normally run a driver directly by calling from main() only, but when
+    run directly the Aurora driver has numerous options so pushing the detail
+    into its own class/object makes sense. Also simplifies some test suite
+    routines/calls.
+
+    A DirectAurora object is created with just an optparse options dict and a
+    standard WeeWX station dict. Once created the DirectAurora()
+    process_arguments() method is called to process the respective command line
+    options.
+    """
+
+    DEFAULT_PORT = '/dev/ttyUSB0'
+
+    def __init__(self, namespace, parser, aurora_dict):
+        """Initialise a DirectAurora object."""
+
+        # save the argparse arguments and parser
+        self.namespace = namespace
+        self.parser = parser
+        # save our config dict
+        self.aurora_dict = aurora_dict
+        # obtain the port to be used, that is the minimum we need to
+        # communicate with the inverter
+        self.port = self.port_from_config_opts()
+
+    def port_from_config_opts(self):
+        """Obtain the port from inverter config or command line argument.
+
+        Determine the port to use given an inverter config dict and command
+        line arguments. The port is chosen as follows:
+        - if specified use the port from the command line
+        - if a port was not specified on the command line obtain the port from
+          the inverter config dict
+        - if the inverter config dict does not specify a port use the default
+          /dev/ttyUSB0
+        """
+
+        # obtain a port number from the command line options
+        port = self.namespace.port if self.namespace.port else None
+        # if we didn't get a port check the inverter config dict
+        if port is None:
+            # obtain the port from the inverter config dict
+            port = self.aurora_dict.get('port')
+            if port is None:
+                port = DirectAurora.DEFAULT_PORT
+                if weewx.debug >= 1:
+                    print(f"Port set to default port '{port}'")
+            else:
+                if weewx.debug >= 1:
+                    print("Port obtained from station config")
+        else:
+            if weewx.debug >= 1:
+                print("Port obtained from command line options")
+        return port
+
+    def process_arguments(self):
+        """Call the appropriate method based on the argparse arguments."""
+
+        # run the driver
+        if hasattr(self.namespace, 'gen') and self.namespace.gen:
+            self.test_driver()
+        elif hasattr(self.namespace, 'status') and self.namespace.status:
+            self.status()
+        elif hasattr(self.namespace, 'info') and self.namespace.info:
+            self.info()
+        elif hasattr(self.namespace, 'readings') and self.namespace.readings:
+            self.readings()
+        elif hasattr(self.namespace, 'get_time') and self.namespace.get_time:
+            self.get_time()
+        elif hasattr(self.namespace, 'set_time') and self.namespace.set_time:
+            self.set_time()
+        else:
+            print()
+            print("No option selected, nothing done")
+            print()
+            self.parser.print_help()
+            return
+
+    def test_driver(self):
+        """Exercise the aurora driver.
+
+        Exercises the aurora driver only. Loop packets, but no archive records,
+        are emitted to the console continuously until a keyboard interrupt is
+        received. A station config dict is coalesced from any relevant command
+        line parameters and the config file in use with command line
+        parameters overriding those in the config file.
+        """
+
+        log.info("Testing Aurora driver...")
+        if self.namespace.poll_interval:
+            self.aurora_dict['poll_interval'] = self.namespace.poll_interval
+        if self.namespace.max_tries:
+            self.aurora_dict['max_tries'] = self.namespace.max_tries
+        if self.namespace.retry_wait:
+            self.aurora_dict['retry_wait'] = self.namespace.retry_wait
+        # wrap in a try..except in case there is an error
+        try:
+            # get a AuroraDriver object
+            driver = AuroraDriver(**self.aurora_dict)
+            # identify the device being used
+            print()
+            print(f"Interrogating {driver.model} at {driver.inverter.port}")
+            print()
+            # continuously get loop packets and print them to screen
+            for pkt in driver.genLoopPackets():
+                print(f"{weeutil.weeutil.timestamp_to_string(pkt['dateTime'])}: "
+                      f"{weeutil.weeutil.to_sorted_string(pkt)})")
+        except Exception as e:
+            print()
+            print("Unable to connect to device: %s" % e)
+        except KeyboardInterrupt:
+            # we have a keyboard interrupt so shut down
+            driver.closePort()
+        log.info("Aurora driver testing complete")
+
+    def status(self):
+        """Display the inverter status."""
+
+        # wrap in a try..except in case there is an error
+        try:
+            # get an AuroraDriver object
+            driver = AuroraDriver(port=self.port)
+            # obtain the inverter state
+            response_rt = driver.do_cmd('getState')
+            # and print the state
+            print()
+            print(f"{driver.model} Status:")
+            if response_rt.transmission_state is not None:
+                print(f'{"Transmission state":>22}: {response_rt.transmission_state} '
+                      f'({AuroraDriver.TRANSMISSION[response_rt.transmission_state]})')
+            else:
+                print(f'{"Transmission state":>22}: None (---)')
+            if response_rt.global_state is not None:
+                print(f'{"Global state":>22}: {response_rt.global_state} '
+                      f'({AuroraDriver.GLOBAL[response_rt.global_state]})')
+            else:
+                print(f'{"Global state":>22}: None (---)')
+            if response_rt.data is not None and response_rt.data[0] is not None:
+                print(f'{"Inverter state":>22}: {response_rt.data[0]} '
+                      f'({AuroraDriver.INVERTER[response_rt.data[0]]})')
+            else:
+                print(f'{"Inverter state":>22}: None (---)')
+            if response_rt.data is not None and response_rt.data[1] is not None:
+                print(f'{"DcDc1 state":>22}: {response_rt.data[1]} '
+                      f'({AuroraDriver.DCDC[response_rt.data[1]]})')
+            else:
+                print(f'{"DcDc1 state":>22}: None (---)')
+            if response_rt.data is not None and response_rt.data[2] is not None:
+                print(f'{"DcDc2 state":>22}: {response_rt.data[2]} '
+                      f'({AuroraDriver.DCDC[response_rt.data[2]]})')
+            else:
+                print(f'{"DcDc2 state":>22}: None (---)')
+            if response_rt.data is not None and response_rt.data[3] is not None:
+                print(f'{"Alarm state":>22}: {response_rt.data[3]} '
+                      f'({AuroraDriver.ALARM[response_rt.data[3]]["description"]})'
+                      f'[{AuroraDriver.ALARM[response_rt.data[3]]["code"]}]')
+            else:
+                print(f'{"Alarm state":>22}: None (---)')
+        except Exception as e:
+            print()
+            print("Unable to connect to device: %s" % e)
+
+    def info(self):
+        
+        try:
+            # get an AuroraDriver object
+            driver = AuroraDriver(port=self.port)
+            # display inverter info
+            print()
+            print(f'{driver.model} Information:')
+            print(f'{"Part Number":>21}: {driver.part_number}')
+            print(f'{"Version":>21}: {driver.version}')
+            print(f'{"Serial Number":>21}: {driver.serial_number}')
+            print(f'{"Manufacture Date":>21}: {driver.manufacture_date}')
+            print(f'{"Firmware Release":>21}: {driver.firmware_rel}')
+        except Exception as e:
+            print()
+            print("Unable to connect to device: %s" % e)
+
+    def readings(self):
+
+        try:
+            # get an AuroraDriver object
+            driver = AuroraDriver(port=self.port)
+            print()
+            print(f"{driver.model} Current Readings:")
+            print("-----------------------------------------------")
+            print("Grid:")
+            print(f"{'Voltage':>29}: {driver.do_cmd('getGridV').data}V")
+            print(f"{'Current':>29}: {driver.do_cmd('getGridC').data}A")
+            print(f"{'Power':>29}: {driver.do_cmd('getGridP').data}W")
+            print(f"{'Frequency':>29}: {driver.do_cmd('getFrequency').data}Hz")
+            print(f"{'Average Voltage':>29}: {driver.do_cmd('getGridAvV').data}V")
+            print(f"{'Neutral Voltage':>29}: {driver.do_cmd('getGridNV').data}V")
+            print(f"{'Neutral Phase Voltage':>29}: {driver.do_cmd('getGridNPhV').data}V")
+            print("-----------------------------------------------")
+            print("String 1:")
+            print(f"{'Voltage':>29}: {driver.do_cmd('getStr1V').data}V")
+            print(f"{'Current':>29}: {driver.do_cmd('getStr1C').data}A")
+            print(f"{'Power':>29}: {driver.do_cmd('getStr1P').data}W")
+            print("-----------------------------------------------")
+            print("String 2:")
+            print(f"{'Voltage':>29}: {driver.do_cmd('getStr2V').data}V")
+            print(f"{'Current':>29}: {driver.do_cmd('getStr2C').data}A")
+            print(f"{'Power':>29}: {driver.do_cmd('getStr2P').data}W")
+            print("-----------------------------------------------")
+            print("Inverter:")
+            print(f"""{"Voltage (DC/DC Booster)":>29}: {driver.do_cmd("getGridDcV").data}V""")
+            print(f"""{"Frequency (DC/DC Booster)":>29}: {driver.do_cmd("getGridDcFreq").data}Hz""")
+            print(f"""{"Inverter Temp":>29}: {driver.do_cmd("getInverterT").data}C""")
+            print(f"""{"Booster Temp":>29}: {driver.do_cmd("getBoosterT").data}C""")
+            print(f"""{"Today's Peak Power":>29}: {driver.do_cmd("getDayPeakP").data}W""")
+            print(f"""{"Lifetime Peak Power":>29}: {driver.do_cmd("getPeakP").data}W""")
+            print(f"""{"Today's Energy":>29}: {driver.do_cmd("getDayEnergy").data}Wh""")
+            print(f"""{"This Weeks's Energy":>29}: {driver.do_cmd("getWeekEnergy").data}Wh""")
+            print(f"""{"This Month's Energy":>29}: {driver.do_cmd("getMonthEnergy").data}Wh""")
+            print(f"""{"This Year's Energy":>29}: {driver.do_cmd("getYearEnergy").data}Wh""")
+            print(f"""{"Partial Energy":>29}: {driver.do_cmd("getPartialEnergy").data}Wh""")
+            print(f"""{"Lifetime Energy":>29}: {driver.do_cmd("getTotalEnergy").data}Wh""")
+            print()
+            print(f"{'Bulk Voltage':>29}: {driver.do_cmd('getBulkV').data}V")
+            print(f"{'Bulk DC Voltage':>29}: {driver.do_cmd('getBulkDcV').data}V")
+            print(f"{'Bulk Mid Voltage':>29}: {driver.do_cmd('getBulkMidV').data}V")
+            print()
+            print(f"{'Insulation Resistance':>29}: {driver.do_cmd('getIsoR').data}MOhms")
+            print()
+            print(f"{'zLeakage Current(Inverter)zz':>29}: {driver.do_cmd('getLeakC').data}A")
+            print(f"{'Leakage Current(Booster)':>29}: {driver.do_cmd('getLeakDcC').data}A")
+        except Exception as e:
+            print()
+            print("Unable to connect to device: %s" % e)
+
+    def get_time(self):
+
+        try:
+            # get an AuroraDriver object
+            driver = AuroraDriver(port=self.port)
+            # display the current inverter time
+            # obtain the inverter time
+            inverter_ts = driver.getTime()
+            # calculate the difference to system time
+            _error = inverter_ts - time.time()
+            # display the results
+            print()
+            print(f"Inverter date-time is {timestamp_to_string(inverter_ts)}")
+            print(f"    Clock error is {_error:.3f} seconds (positive is fast)")
+        except Exception as e:
+            print()
+            print("Unable to connect to device: %s" % e)
+
+    def set_time(self):
+
+        try:
+            # get an AuroraDriver object
+            driver = AuroraDriver(port=self.port)
+            # set the inverter time
+            # obtain the inverter time
+            inverter_ts = driver.getTime()
+            # calculate the difference to system time
+            _error = inverter_ts - time.time()
+            # display the results
+            print()
+            print(f"Current inverter date-time is {timestamp_to_string(inverter_ts)}")
+            print(f"    Clock error is {_error:.3f} seconds (positive is fast)")
+            print()
+            print("Setting time...")
+            # set the inverter time to the system time
+            driver.setTime()
+            # now obtain and display the inverter time
+            inverter_ts = driver.getTime()
+            _error = inverter_ts - time.time()
+            print()
+            print(f"Updated inverter date-time is {timestamp_to_string(inverter_ts)}")
+            print(f"    Clock error is {_error:.3f} seconds (positive is fast)")
+        except Exception as e:
+            print()
+            print("Unable to connect to device: %s" % e)
+
+
 # ============================================================================
 #                          Main Entry for Testing
 # ============================================================================
@@ -1793,9 +2071,13 @@ class ResponseTuple(tuple):
 # Define a main entry point for basic testing without the WeeWX engine and
 # service overhead. To invoke this driver without WeeWX:
 #
-# $ PYTHONPATH=/home/weewxuser/weewx/src python3 ~/weewx-data/bin/user/aurora.py --option
+# $ PYTHONPATH=BIN_ROOT python3 WEEWX_ROOT/bin/user/aurora.py --option
 #
-# where option is one of the following options:
+# where:
+# - BIN_ROOT is the location of the WeeWX executables (varies by install method
+#   and system)
+# - WEEWX_ROOT is the WeeWX root directory (nominally weewx-data)
+# - option is one of the following options:
 #   --help          - display driver command line help
 #   --version       - display driver version
 #   --gen-packets   - generate LOOP packets indefinitely
@@ -1824,7 +2106,8 @@ def main():
                  --get-info [--config=FILENAME]
                  --get-readings [--config=FILENAME]
                  --get-time [--config=FILENAME]
-                 --set-time [--config=FILENAME]{bcolors.ENDC}
+                 --set-time [--config=FILENAME]
+                 --port{bcolors.ENDC}
     """
     description = """Interact with a Power One Aurora inverter."""
 
@@ -1839,6 +2122,10 @@ def main():
     parser.add_argument('--version',
                         action='store_true',
                         help='Display driver version.')
+    parser.add_argument('--port',
+                        type=str,
+                        metavar="PORT",
+                        help='Use port PORT.')
     parser.add_argument('--gen-packets',
                         dest='gen',
                         action='store_true',
@@ -1866,7 +2153,7 @@ def main():
     namespace = parser.parse_args()
 
     if len(sys.argv) == 1:
-        # we have no arguments
+        # we have no arguments, display the help text and exit
         parser.print_help()
         sys.exit(0)
 
@@ -1885,153 +2172,14 @@ def main():
 
     # now get a config dict for the inverter
     aurora_dict = config_dict.get('Aurora')
-    # get an AuroraDriver object
-    if aurora_dict is not None:
-        inverter = AuroraDriver(aurora_dict)
-    else:
-        exit_str = f"'Aurora' stanza not found in configuration file '{config_path}'. Exiting."
-        sys.exit(exit_str)
 
-    # now we can process the other options
+    weeutil.logger.setup('weewx', config_dict)
 
-    # generate loop packets
-    if namespace.gen:
-        # continue indefinitely
-        while True:
-            # obtain a packet
-            for packet in inverter.genLoopPackets():
-                # and print the packet
-                print(("LOOP:  ",
-                       timestamp_to_string(packet['dateTime']),
-                       to_sorted_string(packet)))
-
-    # display inverter status
-    elif namespace.status:
-        # obtain the inverter state
-        response_rt = inverter.do_cmd('getState')
-        # and print the state
-        print()
-        print(f"{inverter.model} Status:")
-        if response_rt.transmission_state is not None:
-            print(f'{"Transmission state":>22}: {response_rt.transmission_state} '
-                  f'({AuroraDriver.TRANSMISSION[response_rt.transmission_state]})')
-        else:
-            print(f'{"Transmission state":>22}: None (---)')
-        if response_rt.global_state is not None:
-            print(f'{"Global state":>22}: {response_rt.global_state} '
-                  f'({AuroraDriver.GLOBAL[response_rt.global_state]})')
-        else:
-            print(f'{"Global state":>22}: None (---)')
-        if response_rt.data is not None and response_rt.data[0] is not None:
-            print(f'{"Inverter state":>22}: {response_rt.data[0]} '
-                  f'({AuroraDriver.INVERTER[response_rt.data[0]]})')
-        else:
-            print(f'{"Inverter state":>22}: None (---)')
-        if response_rt.data is not None and response_rt.data[1] is not None:
-            print(f'{"DcDc1 state":>22}: {response_rt.data[1]} '
-                  f'({AuroraDriver.DCDC[response_rt.data[1]]})')
-        else:
-            print(f'{"DcDc1 state":>22}: None (---)')
-        if response_rt.data is not None and response_rt.data[2] is not None:
-            print(f'{"DcDc2 state":>22}: {response_rt.data[2]} '
-                  f'({AuroraDriver.DCDC[response_rt.data[2]]})')
-        else:
-            print(f'{"DcDc2 state":>22}: None (---)')
-        if response_rt.data is not None and response_rt.data[3] is not None:
-            print(f'{"Alarm state":>22}: {response_rt.data[3]} '
-                  f'({AuroraDriver.ALARM[response_rt.data[3]]["description"]})'
-                  f'[{AuroraDriver.ALARM[response_rt.data[3]]["code"]}]')
-        else:
-            print(f'{"Alarm state":>22}: None (---)')
-
-    # display inverter info
-    elif namespace.info:
-        print()
-        print(f'{inverter.model} Information:')
-        print(f'{"Part Number":>21}: {inverter.part_number}')
-        print(f'{"Version":>21}: {inverter.version}')
-        print(f'{"Serial Number":>21}: {inverter.serial_number}')
-        print(f'{"Manufacture Date":>21}: {inverter.manufacture_date}')
-        print(f'{"Firmware Release":>21}: {inverter.firmware_rel}')
-
-    # display current inverter readings
-    elif namespace.readings:
-        print()
-        print(f"{inverter.model} Current Readings:")
-        print("-----------------------------------------------")
-        print("Grid:")
-        print(f"{'Voltage':>29}: {inverter.do_cmd('getGridV').data}V")
-        print(f"{'Current':>29}: {inverter.do_cmd('getGridC').data}A")
-        print(f"{'Power':>29}: {inverter.do_cmd('getGridP').data}W")
-        print(f"{'Frequency':>29}: {inverter.do_cmd('getFrequency').data}Hz")
-        print(f"{'Average Voltage':>29}: {inverter.do_cmd('getGridAvV').data}V")
-        print(f"{'Neutral Voltage':>29}: {inverter.do_cmd('getGridNV').data}V")
-        print(f"{'Neutral Phase Voltage':>29}: {inverter.do_cmd('getGridNPhV').data}V")
-        print("-----------------------------------------------")
-        print("String 1:")
-        print(f"{'Voltage':>29}: {inverter.do_cmd('getStr1V').data}V")
-        print(f"{'Current':>29}: {inverter.do_cmd('getStr1C').data}A")
-        print(f"{'Power':>29}: {inverter.do_cmd('getStr1P').data}W")
-        print("-----------------------------------------------")
-        print("String 2:")
-        print(f"{'Voltage':>29}: {inverter.do_cmd('getStr2V').data}V")
-        print(f"{'Current':>29}: {inverter.do_cmd('getStr2C').data}A")
-        print(f"{'Power':>29}: {inverter.do_cmd('getStr2P').data}W")
-        print("-----------------------------------------------")
-        print("Inverter:")
-        print(f"""{"Voltage (DC/DC Booster)":>29}: {inverter.do_cmd("getGridDcV").data}V""")
-        print(f"""{"Frequency (DC/DC Booster)":>29}: {inverter.do_cmd("getGridDcFreq").data}Hz""")
-        print(f"""{"Inverter Temp":>29}: {inverter.do_cmd("getInverterT").data}C""")
-        print(f"""{"Booster Temp":>29}: {inverter.do_cmd("getBoosterT").data}C""")
-        print(f"""{"Today's Peak Power":>29}: {inverter.do_cmd("getDayPeakP").data}W""")
-        print(f"""{"Lifetime Peak Power":>29}: {inverter.do_cmd("getPeakP").data}W""")
-        print(f"""{"Today's Energy":>29}: {inverter.do_cmd("getDayEnergy").data}Wh""")
-        print(f"""{"This Weeks's Energy":>29}: {inverter.do_cmd("getWeekEnergy").data}Wh""")
-        print(f"""{"This Month's Energy":>29}: {inverter.do_cmd("getMonthEnergy").data}Wh""")
-        print(f"""{"This Year's Energy":>29}: {inverter.do_cmd("getYearEnergy").data}Wh""")
-        print(f"""{"Partial Energy":>29}: {inverter.do_cmd("getPartialEnergy").data}Wh""")
-        print(f"""{"Lifetime Energy":>29}: {inverter.do_cmd("getTotalEnergy").data}Wh""")
-        print()
-        print(f"{'Bulk Voltage':>29}: {inverter.do_cmd('getBulkV').data}V")
-        print(f"{'Bulk DC Voltage':>29}: {inverter.do_cmd('getBulkDcV').data}V")
-        print(f"{'Bulk Mid Voltage':>29}: {inverter.do_cmd('getBulkMidV').data}V")
-        print()
-        print(f"{'Insulation Resistance':>29}: {inverter.do_cmd('getIsoR').data}MOhms")
-        print()
-        print(f"{'zLeakage Current(Inverter)zz':>29}: {inverter.do_cmd('getLeakC').data}A")
-        print(f"{'Leakage Current(Booster)':>29}: {inverter.do_cmd('getLeakDcC').data}A")
-
-    # display the current inverter time
-    elif namespace.get_time:
-        # obtain the inverter time
-        inverter_ts = inverter.getTime()
-        # calculate the difference to system time
-        _error = inverter_ts - time.time()
-        # display the results
-        print()
-        print(f"Inverter date-time is {timestamp_to_string(inverter_ts)}")
-        print(f"    Clock error is {_error:.3f} seconds (positive is fast)")
-
-    # set the inverter time
-    elif namespace.set_time:
-        # obtain the inverter time
-        inverter_ts = inverter.getTime()
-        # calculate the difference to system time
-        _error = inverter_ts - time.time()
-        # display the results
-        print()
-        print(f"Current inverter date-time is {timestamp_to_string(inverter_ts)}")
-        print(f"    Clock error is {_error:.3f} seconds (positive is fast)")
-        print()
-        print("Setting time...")
-        # set the inverter time to the system time
-        inverter.setTime()
-        # now obtain and display the inverter time
-        inverter_ts = inverter.getTime()
-        _error = inverter_ts - time.time()
-        print()
-        print(f"Updated inverter date-time is {timestamp_to_string(inverter_ts)}")
-        print(f"    Clock error is {_error:.3f} seconds (positive is fast)")
+    # get a DirectAurora object
+    direct_aurora = DirectAurora(namespace, parser, aurora_dict)
+    # now let the DirectAurora object process the arguments
+    direct_aurora.process_arguments()
+    exit(1)
 
 
 if __name__ == "__main__":
