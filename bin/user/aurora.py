@@ -2068,24 +2068,26 @@ class DirectAurora(object):
 #                          Main Entry for Testing
 # ============================================================================
 
-# Define a main entry point for basic testing without the WeeWX engine and
-# service overhead. To invoke this driver without WeeWX:
-#
-# $ PYTHONPATH=BIN_ROOT python3 WEEWX_ROOT/bin/user/aurora.py --option
-#
-# where:
-# - BIN_ROOT is the location of the WeeWX executables (varies by install method
-#   and system)
-# - WEEWX_ROOT is the WeeWX root directory (nominally weewx-data)
-# - option is one of the following options:
-#   --help          - display driver command line help
-#   --version       - display driver version
-#   --gen-packets   - generate LOOP packets indefinitely
-#   --get-status    - display inverter status
-#   --get-info      - display inverter information
-#   --get-readings  - display current inverter readings
-#   --get-time      - display inverter time
-#   --set-time      - set inverter time to the current system time
+"""
+Define a main entry point for basic testing without the WeeWX engine and
+service overhead. To invoke this driver without WeeWX:
+
+$ PYTHONPATH=BIN_ROOT python3 WEEWX_ROOT/bin/user/aurora.py --option
+
+where:
+- BIN_ROOT is the location of the WeeWX executables (varies by install method
+  and system)
+- WEEWX_ROOT is the WeeWX root directory (nominally weewx-data)
+- option is one of the following options:
+  --help          - display driver command line help
+  --version       - display driver version
+  --gen-packets   - generate LOOP packets indefinitely
+  --get-status    - display inverter status
+  --get-info      - display inverter information
+  --get-readings  - display current inverter readings
+  --get-time      - display inverter time
+  --set-time      - set inverter time to the current system time
+"""
 
 def main():
 
