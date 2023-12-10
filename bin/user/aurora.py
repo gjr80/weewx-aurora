@@ -753,9 +753,10 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         # get the ts
         _time_ts = self.do_cmd('getTimeDate').data
         if _time_ts is None:
-            # if it's None the inverter is asleep (or otherwise unavailable) so
-            # raise a NotImplementedError
-            raise NotImplementedError("Method 'getTime' not implemented")
+            # if it's None the inverter most likely asleep, though there could
+            # be a communication problem, assume the former and raise a
+            # NotImplementedError
+            raise NotImplementedError("getTime: Could not contact inverter, it may be asleep")
         else:
             #  otherwise return the time
             return _time_ts
@@ -774,10 +775,11 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         # check if the inverter is online, we will get None if the inverter
         # cannot be contacted
         _time_ts = self.do_cmd('getTimeDate').data
-        # if the inverter is not there then raise a NotImplementedError
-        # otherwise continue
+        # if it's None the inverter most likely asleep, though there could
+        # be a communication problem, assume the former and raise a
+        # NotImplementedError
         if _time_ts is None:
-            raise NotImplementedError("Method 'setTime' not implemented")
+            raise NotImplementedError("setTime: Could not contact inverter, it may be asleep")
         else:
             # get the current system time, offset by 2 seconds to allow for
             # rounding (0.5) and the delay in the command being issued and
@@ -2022,18 +2024,28 @@ class DirectAurora(object):
         try:
             # get an AuroraDriver object
             driver = AuroraDriver(port=self.port)
-            # display the current inverter time
+        except Exception as e:
+            # something happened and we could not load the driver, inform the
+            # user and display any error message
+            print()
+            print("Unable to load driver: %s" % e)
+            return
+        try:
             # obtain the inverter time
             inverter_ts = driver.getTime()
-            # calculate the difference to system time
+        except Exception as e:
+            # something happened and we could not get the time from the
+            # inverter, inform the user and display any error message
+            print()
+            print("Unable to obtain device time: %s" % e)
+        else:
+            # we have the inverter time, so calculate the difference to system
+            # time
             _error = inverter_ts - time.time()
             # display the results
             print()
             print(f"Inverter date-time is {timestamp_to_string(inverter_ts)}")
             print(f"    Clock error is {_error:.3f} seconds (positive is fast)")
-        except Exception as e:
-            print()
-            print("Unable to connect to device: %s" % e)
 
     def set_time(self):
 
