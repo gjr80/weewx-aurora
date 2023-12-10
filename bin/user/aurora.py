@@ -556,25 +556,52 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         except KeyError:
             raise Exception("Required parameter 'port' was not specified.")
         baudrate = int(inverter_dict.get('baudrate', 19200))
-        timeout = float(inverter_dict.get('timeout', 2.0))
+        # get the read timeout to be used, we need to handle the legacy timeout
+        # config option if it was used
+        _legacy_timeout = inverter_dict.get('timeout')
+        _read_timeout = inverter_dict.get('read_timeout')
+        if _read_timeout is not None:
+            read_timeout = float(_read_timeout)
+        elif _legacy_timeout is not None:
+            read_timeout = float(_legacy_timeout)
+        else:
+            read_timeout = 2.0
+        write_timeout = float(inverter_dict.get('write_timeout', 2.0))
         wait_before_retry = float(inverter_dict.get('wait_before_retry', 1.0))
         command_delay = float(inverter_dict.get('command_delay', 0.05))
-        log.info('   using port %s baudrate %d timeout %d' % (port, baudrate, timeout))
-        log.info('   wait_before_retry %d command_delay %.2f' % (wait_before_retry,
-                                                                 command_delay))
+
+        log.info("   port: '%s' baudrate: %d "
+                 "read_timeout: %.1f write_timeout: %.1fd" % (port, baudrate,
+                                                              read_timeout, write_timeout))
+        log.info('   wait_before_retry: %.1f command_delay: %.2f' % (wait_before_retry,
+                                                                     command_delay))
         # driver options
         self.max_command_tries = int(inverter_dict.get('max_command_tries', 3))
-        self.polling_interval = int(inverter_dict.get('loop_interval', 10))
+        # get the inverter poll interval to be used, we need to handle the legacy loop_interval
+        # config option if it was used
+        _legacy_loop_interval = inverter_dict.get('loop_interval')
+        _poll_interval = inverter_dict.get('poll_interval')
+        if _poll_interval is not None:
+            self.poll_interval = int(_poll_interval)
+        elif _legacy_loop_interval is not None:
+            self.poll_interval = int(_legacy_loop_interval)
+        else:
+            self.poll_interval = 10
         self.address = int(inverter_dict.get('address', 2))
         self.max_loop_tries = int(inverter_dict.get('max_loop_tries', 3))
-        log.info('   inverter address %d will be polled every %d seconds' % (self.address,
-                                                                             self.polling_interval))
-        log.info('   max_command_tries %d max_loop_tries %d' % (self.max_command_tries,
-                                                                self.max_loop_tries))
+        # get the sensor map
+        self.sensor_map = inverter_dict.get('sensor_map',
+                                            AuroraDriver.DEFAULT_SENSOR_MAP)
+        log.info("   inverter address: %d poll_interval: %d seconds" % (self.address,
+                                                                        self.poll_interval))
+        log.info('   max_command_tries: %d max_loop_tries: %d' % (self.max_command_tries,
+                                                                  self.max_loop_tries))
+        log.info('   sensor_map: %s' % (self.sensor_map, ))
         # get an AuroraInverter object
         self.inverter = AuroraInverter(port,
                                        baudrate=baudrate,
-                                       timeout=timeout,
+                                       read_timeout=read_timeout,
+                                       write_timeout=write_timeout,
                                        wait_before_retry=wait_before_retry,
                                        command_delay=command_delay)
         # open up the connection to the inverter
@@ -583,12 +610,11 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         self.running = self.do_cmd('getState').global_state == 6
         # initialise last energy value
         self.last_energy = None
-        # get the sensor map
-        self.sensor_map = inverter_dict.get('sensor_map',
-                                            AuroraDriver.DEFAULT_SENSOR_MAP)
-        log.info('sensor_map=%s' % (self.sensor_map, ))
-        # build a 'none' packet to use when the inverter is offline
+        # build a 'none' packet to use when the inverter is offline, first
+        # create an empty dict
         self.none_packet = {}
+        # now iterate over the fields we expect entering their 'none packet'
+        # values in the dict
         for field in AuroraDriver.SENSOR_LOOKUP:
             self.none_packet[field] = None
 
@@ -605,11 +631,11 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
     def genLoopPackets(self):
         """Generator function that returns 'loop' packets.
 
-        Poll the inverter every self.polling_interval seconds and generate a
+        Poll the inverter every self.poll_interval seconds and generate a
         loop packet. Sleep between loop packets.
         """
 
-        while int(time.time()) % self.polling_interval != 0:
+        while int(time.time()) % self.poll_interval != 0:
             time.sleep(0.2)
         for count in range(self.max_loop_tries):
             while True:
@@ -657,7 +683,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                     # wait until it's time to poll again
                     if weewx.debug >= 2:
                         log.debug("genLoopPackets: sleeping")
-                    while time.time() < _ts + self.polling_interval:
+                    while time.time() < _ts + self.poll_interval:
                         time.sleep(0.2)
                 except IOError as e:
                     log.error("LOOP try #%d; error: %s" % (count + 1, e))
@@ -882,13 +908,15 @@ class AuroraInverter(object):
     DEFAULT_PORT = '/dev/ttyUSB0'
     DEFAULT_ADDRESS = '2'
 
-    def __init__(self, port, baudrate=19200, timeout=2.0,
-                 wait_before_retry=1.0, command_delay=0.05):
+    def __init__(self, port, baudrate=19200, read_timeout=2.0,
+                 write_timeout=2.0, wait_before_retry=1.0,
+                 command_delay=0.05):
         """Initialise the AuroraInverter object."""
 
         self.port = port
         self.baudrate = baudrate
-        self.timeout = timeout
+        self.read_timeout = read_timeout
+        self.write_timeout = write_timeout
         self.wait_before_retry = wait_before_retry
         self.command_delay = command_delay
 
@@ -943,11 +971,23 @@ class AuroraInverter(object):
     def open_port(self):
         """Open a serial port."""
 
-        self.serial_port = serial.Serial(port=self.port, baudrate=self.baudrate,
-                                         timeout=self.timeout)
-        log.debug("Opened serial port %s; baudrate %d; timeout %.2f" % (self.port,
-                                                                        self.baudrate,
-                                                                        self.timeout))
+        try:
+            self.serial_port = serial.Serial(port=self.port,
+                                             baudrate=self.baudrate,
+                                             timeout=self.read_timeout,
+                                             write_timeout=self.write_timeout)
+        except serial.SerialException as e:
+            # we encountered a serial exception, log it and re-raise
+            log.error("SerialException on open.")
+            log.error("  ***** %s" % e)
+            # re-raise as a WeeWX IO error
+            raise
+        else:
+            log.debug("Opened serial port '%s' baudrate: %d "
+                      "read_timeout: %.2f write_timeout: %.2f" % (self.port,
+                                                                  self.baudrate,
+                                                                  self.read_timeout,
+                                                                  self.write_timeout))
 
     def close_port(self):
         """Close a serial port."""
@@ -972,13 +1012,25 @@ class AuroraInverter(object):
 
         try:
             n = self.serial_port.write(data)
-        except serial.serialutil.SerialException as e:
+        except serial.SerialTimeoutException as e:
+            # we encountered a write timeout, log it and re-raise as a WeeWX IO
+            # error
+            log.error("SerialTimeoutException on write.")
+            log.error("  ***** %s" % e)
+            # re-raise as a WeeWX IO error
+            raise weewx.WeeWxIOError(e)
+        except serial.SerialException as e:
+            # we encountered some other serial exception, log it and re-raise
+            # as a WeeWX IO error
             log.error("SerialException on write.")
             log.error("  ***** %s" % e)
             # re-raise as a WeeWX error I/O error:
             raise weewx.WeeWxIOError(e)
-        # Python version 2.5 and earlier returns 'None', so it cannot be used
-        # to test for completion.
+        # Check the serial.Serial.write() return value. write() always returns
+        # 'None' for pyserial version 2.5 and earlier, so if we received 'None'
+        # it may have been a successful write. We can only infer an error if we
+        # received a non-None value and it does not match the number of bytes
+        # we intended to send.
         if n is not None and n != len(data):
             raise weewx.WeeWxIOError("Expected to write %d chars; sent %d instead" % (len(data),
                                                                                       n))
@@ -999,7 +1051,15 @@ class AuroraInverter(object):
 
         try:
             _buffer = self.serial_port.read(bytes_to_read)
-        except serial.serialutil.SerialException as e:
+        except serial.SerialTimeoutException as e:
+            # we encountered a read timeout, log it and re-raise as a WeeWX IO
+            # error
+            log.error("SerialTimeoutException on read.")
+            log.error("  ***** %s" % e)
+            log.error("  ***** Is there a competing process running??")
+            # re-raise as a WeeWX IO error
+            raise weewx.WeeWxIOError(e)
+        except serial.SerialException as e:
             log.error("SerialException on read.")
             log.error("  ***** %s % e")
             log.error("  ***** Is there a competing process running??")
