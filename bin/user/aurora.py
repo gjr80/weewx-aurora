@@ -43,7 +43,7 @@ Revision History
         - added confeditor_loader() function
         - revised logging output format to be more consistent
         - added more arguments to AuroraInverter class
-        - AuroraDriver send_cmd_with_crc() method now accepts additional
+        - AuroraDriver execute_cmd_with_crc() method now accepts additional
           arguments
         - refactored calculate_energy()
         - units, groups, conversions and formatting defaults are now defined in
@@ -576,7 +576,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         log.info('   wait_before_retry: %.1f command_delay: %.2f' % (wait_before_retry,
                                                                      command_delay))
         # driver options
-        self.max_command_tries = int(inverter_dict.get('max_command_tries', 3))
+        max_command_tries = int(inverter_dict.get('max_command_tries', 3))
         # get the inverter poll interval to be used, we need to handle the legacy loop_interval
         # config option if it was used
         _legacy_loop_interval = inverter_dict.get('loop_interval')
@@ -587,23 +587,25 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
             self.poll_interval = int(_legacy_loop_interval)
         else:
             self.poll_interval = 10
-        self.address = int(inverter_dict.get('address', 2))
+        address = int(inverter_dict.get('address', 2))
         self.max_loop_tries = int(inverter_dict.get('max_loop_tries', 3))
         # get the sensor map
         self.sensor_map = inverter_dict.get('sensor_map',
                                             AuroraDriver.DEFAULT_SENSOR_MAP)
-        log.info("   inverter address: %d poll_interval: %d seconds" % (self.address,
+        log.info("   inverter address: %d poll_interval: %d seconds" % (address,
                                                                         self.poll_interval))
-        log.info('   max_command_tries: %d max_loop_tries: %d' % (self.max_command_tries,
+        log.info('   max_command_tries: %d max_loop_tries: %d' % (max_command_tries,
                                                                   self.max_loop_tries))
         log.info('   sensor_map: %s' % (self.sensor_map, ))
         # get an AuroraInverter object
         self.inverter = AuroraInverter(port,
                                        baudrate=baudrate,
+                                       address=address,
                                        read_timeout=read_timeout,
                                        write_timeout=write_timeout,
                                        wait_before_retry=wait_before_retry,
-                                       command_delay=command_delay)
+                                       command_delay=command_delay,
+                                       max_tries=max_command_tries)
         # open up the connection to the inverter
         self.openPort()
         # is the inverter running ie global state '6' (Run)
@@ -691,6 +693,23 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         log.error("LOOP max tries (%d) exceeded." % self.max_loop_tries)
         raise weewx.RetriesExceeded("Max tries exceeded while getting LOOP data.")
 
+    def get_packet(self):
+        """Get a loop packet from the inverter."""
+
+        _packet = {}
+        # iterate over each field we need, that is each inverter field in the
+        # sensor map
+        for weewx_field, inverter_field in self.sensor_fields.items():
+            # get the field value
+            try:
+                _value = self.inverter.get_field(inverter_field)
+            except weewx.WeeWXIOError:
+                continue
+            else:
+                if self.inverter.is_running:
+                    _packet[weewx_field] = _value
+        return _packet
+
     def get_raw_packet(self):
         """Get the raw loop data from the inverter."""
 
@@ -753,11 +772,11 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         """
 
         try:
-            return self.inverter.send_cmd_with_crc(command,
-                                                   payload=payload,
-                                                   globall=globall,
-                                                   address=self.address,
-                                                   max_tries=self.max_command_tries)
+            return self.inverter.execute_cmd_with_crc(command,
+                                                      payload=payload,
+                                                      globall=globall,
+                                                      address=self.address,
+                                                      max_tries=self.max_command_tries)
         except weewx.WeeWxIOError:
             return ResponseTuple(None, None, None)
 
@@ -903,22 +922,30 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
 # ============================================================================
 
 class AuroraInverter(object):
-    """Class to support serial comms with an Aurora PVI-6000 inverter."""
+    """Class to support serial comms with an Aurora PVI-6000 inverter.
+
+    An AuroraInverter object knows how to:
+    - communicate directly with the inverter
+    - utilise the 'inverter API' to get inverter status/set inverter options
+
+    """
 
     DEFAULT_PORT = '/dev/ttyUSB0'
     DEFAULT_ADDRESS = '2'
 
-    def __init__(self, port, baudrate=19200, read_timeout=2.0,
+    def __init__(self, port, baudrate=19200, address=2, read_timeout=2.0,
                  write_timeout=2.0, wait_before_retry=1.0,
-                 command_delay=0.05):
+                 command_delay=0.05, max_tries=3):
         """Initialise the AuroraInverter object."""
 
         self.port = port
         self.baudrate = baudrate
+        self.address = address
         self.read_timeout = read_timeout
         self.write_timeout = write_timeout
         self.wait_before_retry = wait_before_retry
         self.command_delay = command_delay
+        self.max_tries=max_tries
 
         self.serial_port = None
 
@@ -967,6 +994,75 @@ class AuroraInverter(object):
             'getPartialEnergy':   {'cmd': 78, 'sub':  6,    'fn': self._dec_int},
             'getLastAlarms':      {'cmd': 86, 'sub':  None, 'fn': self._dec_alarms}
         }
+        # Inverter commands that I know about. Each entry contains the command
+        # code to be sent to the inverter as well as the decode function to
+        # decode the returned data.
+        self.comands = {
+            'state_request':    {'cmd_code': 50, 'fn': self._dec_state},
+            'part_number':      {'cmd_code': 52, 'fn': self._dec_ascii},
+            'version':          {'cmd_code': 58, 'fn': self._dec_ascii_and_state},
+            'measure':          {'cmd_code': 59, 'fn': self._dec_float},
+            'serial_number':    {'cmd_code': 63, 'fn': self._dec_ascii},
+            'manufacture_date': {'cmd_code': 65, 'fn': self._dec_week_year},
+            'read_time_date':   {'cmd_code': 70, 'fn': self._dec_ts},
+            'set_time_date':    {'cmd_code': 71, 'fn': self._dec_raw},
+            'firmware_release': {'cmd_code': 72, 'fn': self._dec_ascii_and_state},
+            'cumulated_energy': {'cmd_code': 78, 'fn': self._dec_int},
+            'last_alarms':      {'cmd_code': 86, 'fn': self._dec_alarms}
+
+        }
+        # 'Fields' that I can populate. Each entry contains the command and, if
+        # applicable, any sub-command code to be sent to the inverter.
+        self.field_commands = {
+            'state':                      {'cmd': 'state_request'},
+            'part_number':                {'cmd': 'part_number'},
+            'version':                    {'cmd': 'version'},
+            'grid_voltage':               {'cmd': 'measure', 'p1':  1},
+            'grid_current':               {'cmd': 'measure', 'p1':  2},
+            'grid_power':                 {'cmd': 'measure', 'p1':  3},
+            'frequency':                  {'cmd': 'measure', 'p1':  4},
+            'bulk_voltage':               {'cmd': 'measure', 'p1':  5},
+            'leak_dc_current':            {'cmd': 'measure', 'p1':  6},
+            'leak_current':               {'cmd': 'measure', 'p1':  7},
+            'string1_power':              {'cmd': 'measure', 'p1':  8},
+            'string2_power':              {'cmd': 'measure', 'p1':  9},
+            'inverter_temp':              {'cmd': 'measure', 'p1': 21},
+            'booster_temp':               {'cmd': 'measure', 'p1': 22},
+            'string1_voltage':            {'cmd': 'measure', 'p1': 23},
+            'string1_current':            {'cmd': 'measure', 'p1': 25},
+            'string2_voltage':            {'cmd': 'measure', 'p1': 26},
+            'string2_current':            {'cmd': 'measure', 'p1': 27},
+            'grid_dc_voltage':            {'cmd': 'measure', 'p1': 28},
+            'grid_dc_frequency':          {'cmd': 'measure', 'p1': 29},
+            'isolation_resistance':       {'cmd': 'measure', 'p1': 30},
+            'bulk_dc_voltage':            {'cmd': 'measure', 'p1': 31},
+            'grid_average_voltage':       {'cmd': 'measure', 'p1': 32},
+            'bulk_mid_voltage':           {'cmd': 'measure', 'p1': 33},
+            'peak_power':                 {'cmd': 'measure', 'p1': 34},
+            'day_peak_power':             {'cmd': 'measure', 'p1': 35},
+            'grid_voltage_neutral':       {'cmd': 'measure', 'p1': 36},
+            'grid_voltage_neutral_phase': {'cmd': 'measure', 'p1': 38},
+            'serial_number':              {'cmd': 'serial_number'},
+            'manufacture_date':           {'cmd': 'manufacture_date'},
+            'time_date':                  {'cmd': 'read_time_date'},
+            'setTimeDate':                {'cmd': 'set_time_date'},
+            'firmware_release':           {'cmd': 'firmware_release'},
+            'day_energy':                 {'cmd': 'cumulated_energy', 'p1':  0},
+            'week_energy':                {'cmd': 'cumulated_energy', 'p1':  1},
+            'month_energy':               {'cmd': 'cumulated_energy', 'p1':  3},
+            'year_energy':                {'cmd': 'cumulated_energy', 'p1':  4},
+            'total_energy':               {'cmd': 'cumulated_energy', 'p1':  5},
+            'partial_energy':             {'cmd': 'cumulated_energy', 'p1':  6},
+            'last_alarms':                {'cmd': 'last_alarms'}
+        }
+        self.global_state = None
+        self.transmission_state = None
+
+    @property
+    def is_running(self) -> bool:
+        """Is the inverter running."""
+
+        return self.global_state == 6
 
     def open_port(self):
         """Open a serial port."""
@@ -1071,41 +1167,63 @@ class AuroraInverter(object):
                                                                                     n))
         return _buffer
 
-    def send_cmd_with_crc(self, command, payload=None, globall=0,
-                          address=2, max_tries=3):
-        """Send a command with CRC to the inverter and return the response.
+    def get_field(self, field_name, source=None):
+        """Obtain the value of a given field using the API."""
+
+        response_t = self.execute_cmd_with_crc(command=self.field_commands[field_name]['cmd'],
+                                               p1=self.field_commands[field_name].get('p1'),
+                                               payload=None,
+                                               p2=source)
+        return response_t.data
+
+    def execute_cmd_with_crc(self, command, p1=None, p2=None, payload=None):
+        """Send a command with CRC to the inverter and return the decoded
+        response.
 
         Inputs:
-            command:    The inverter command being issued, eg 'getGridV'.
-                        String.
-            payload:    Data to be sent to the inverter as part of the command.
-                        Will occupy part or all of bytes 2,3,4,5,6 and 7.
-                        Currently only used by setTime. String.
-            global_mode:
-            address:    The inverter address to be used, normally 2.
-            max_tries:  The maximum number of attempts to send the data before
-                        an error is raised.
+            command: The inverter command being issued, eg 'state_request'.
+                     String.
+            p1:      The first parameter used with the command code. Purpose
+                     and parameter name vary with the command. Optional,
+                     integer or None if not used.
+            p2:      The second parameter included after the command code and
+                     first parameter. If the first parameter is unused
+                     (ie None) the second parameter is ignored. Optional,
+                     integer or None if not used.
+            payload: Data to be sent to the inverter as part of the command.
+                     Will occupy part or all of bytes 2,3,4,5,6 and 7.
+                     Currently only used by setTime. String.
+        The transmission_state and/or global_state properties are updated from
+        any command response that includes inverter Transmission State and/or
+        Global State data
 
         Returns:
             The decoded inverter response to the command as a Response Tuple.
         """
 
         # get the command message to be sent including CRC
-        _command_bytes_crc = self.construct_cmd_message(command, payload, globall, address)
+        _command_bytes_crc = self.construct_cmd_message(command_code=self.commands[command]['command_code'],
+                                                        p1=p1,
+                                                        p2=p2,
+                                                        payload=payload)
         # now send the assembled command retrying up to max_tries times
-        for count in range(max_tries):
+        for count in range(self.max_tries):
             if weewx.debug >= 2:
-                log.debug("send_cmd_with_crc: sent %d" % format_byte_to_hex(_command_bytes_crc))
+                log.debug("execute_cmd_with_crc: sent %d" % format_byte_to_hex(_command_bytes_crc))
             try:
                 self.write(_command_bytes_crc)
                 # wait before reading
                 time.sleep(self.command_delay)
                 # look for the response
                 _resp = self.read_with_crc()
-                if self.commands[command]['fn'] is not None:
-                    return self.commands[command]['fn'](_resp)
-                else:
-                    return _resp
+                _response_t = self.commands[command]['fn'](_resp)
+                # update the global_state and transmission_state properties
+                # from the response if they are not None
+                if _response_t.transmission_state is not None:
+                    self.transmission_state = _response_t.transmission_state
+                if _response_t.global_state is not None:
+                    self.global_state = _response_t.global_state
+                return _response_t
             except weewx.CRCError:
                 # We seem to get occasional CRC errors, once they start they
                 # continue indefinitely. Closing then opening the serial port
@@ -1113,7 +1231,7 @@ class AuroraInverter(object):
                 # continue (until the next one). So if we get a CRC error then
                 # cycle the port and continue.
 
-                if count + 1 < max_tries:
+                if count + 1 < self.max_tries:
                     # log that we are about to cycle the port
                     log.info("CRC error on try #%d. Cycling port." % (count + 1, ))
                     # close the port, wait 0.2 sec then open the port
@@ -1130,28 +1248,28 @@ class AuroraInverter(object):
             # Sometimes we seem to get stuck in continuous IO errors. Cycling
             # the serial port after the second IO error usually fixes the
             # problem.
-            if count + 1 < max_tries:
+            if count + 1 < self.max_tries:
                 # 1st or 2nd attempt
-                if count + 2 == max_tries:
+                if count + 2 == self.max_tries:
                     # the 2nd attempt failed so cycle the port
                     if weewx.debug >= 2:
-                        log.debug("send_cmd_with_crc: try #%d unsuccessful... cycling port" % (count + 1, ))
+                        log.debug("execute_cmd_with_crc: try #%d unsuccessful... cycling port" % (count + 1, ))
                     # close the port, wait 0.2 sec then open the port
                     self.close_port()
                     time.sleep(0.2)
                     self.open_port()
                     # log that the port has been cycled
                     if weewx.debug >= 2:
-                        log.debug("send_cmd_with_crc: port cycle complete.")
+                        log.debug("execute_cmd_with_crc: port cycle complete.")
                 else:
                     if weewx.debug >= 2:
-                        log.debug("send_cmd_with_crc: try #%d unsuccessful... sleeping" % (count + 1, ))
+                        log.debug("execute_cmd_with_crc: try #%d unsuccessful... sleeping" % (count + 1, ))
                     time.sleep(self.wait_before_retry)
                 if weewx.debug >= 2:
-                    log.debug("send_cmd_with_crc: retrying")
+                    log.debug("execute_cmd_with_crc: retrying")
             else:
                 if weewx.debug >= 2:
-                    log.debug("send_cmd_with_crc: try #%d unsuccessful" % (count + 1,))
+                    log.debug("execute_cmd_with_crc: try #%d unsuccessful" % (count + 1,))
         log.debug("Unable to send or receive data to/from the inverter")
         raise weewx.WeeWxIOError("Unable to send or receive data to/from the inverter")
 
@@ -1258,7 +1376,7 @@ class AuroraInverter(object):
         b = s.pack(i & 0xff, i // 256)
         return b
 
-    def construct_cmd_message(self, command, payload=None, global_mode=0, address=2):
+    def construct_cmd_message(self, command_code, p1=None, p2=0, payload=None):
         """Construct the byte sequence for a command.
 
         The inverter communications protocol uses fixed length transmission
@@ -1275,65 +1393,100 @@ class AuroraInverter(object):
         byte 8: CRC low byte
         byte 9: CRC high byte
 
-        Bytes 2 to 7 inclusive are used with some command codes to represent a
-        sub-command and/or command payload. Unused bytes can be anything, but
-        in this implementation they are padded with 0x00.
+        Bytes 2 to 7 inclusive are used with some command codes as additional
+        parameters or a command payload. Unused bytes can be anything, but in
+        this implementation they are padded with 0x00.
 
         Inputs:
-            command:     The inverter command being issued, eg 'getGridV'. Must
-                         be a key to the AuroraInverter.commands dict.
-                         Mandatory, string.
-            payload:     Data to be sent to the inverter as part of the command.
-                         Will occupy part or all of bytes 2, 3, 4, 5, 6 and 7.
-                         Optional, bytestring. (currently only used by setTime)
-            global_mode: Whether to return module energy (master or slave) (0)
-                         or global energy (master) (1). Optional, integer 0 or
-                         1, default 0.
-            address:     The inverter address to be used. Optional,
-                         integer 0-63, default is 2.
+            command_code: The inverter command being issued, eg 'getGridV'.
+                          Must be a key to the AuroraInverter.commands dict.
+                          Mandatory, string.
+            p1:           The first parameter included after the command code.
+                          Purpose and parameter name vary with the command.
+                          Optional, integer or None if not used.
+            p2:           The second parameter included after the command code
+                          and first parameter. If the first parameter is unused
+                          (ie None) the second parameter is ignored. Optional,
+                          integer or None if not used.
+            payload:      Data to be sent to the inverter as part of the
+                          command. Will occupy part or all of bytes 2, 3, 4, 5,
+                          6 and 7. Optional, bytestring. (currently only used
+                          to set inverter time)
+
+        The command sequence bytestring is constructed by creating a tuple of
+        bytes from the command parameters. The tuple is padded with '0's to
+        give a length of 10 elements. The tuple is converted to a bytestring,
+        its CRC16 calculated and appended to the bytestring to give the final
+        command sequence.
 
         Returns:
-            A bytes object (aka bytestring) containing the command message.
+            A bytes object (aka bytestring) 10 bytes in length containing the
+            command message.
         """
-        # TODO. global_mode should not be here as it is only used with the #59 command
 
-        # construct a tuple of the bytes we are to send, starting with byte 0,
-        # ending with byte 9
+        # First construct a tuple of the bytes we are to send, starting with byte 0,
+        # ending with byte 9. Then convert to a bytestring,  and then convert the tup
 
-        # do we have a sub-command
-        if self.commands[command]['sub'] is not None:
-            # we have a sub-command, construct the tuple
-            command_t = (address,
-                         self.commands[command]['cmd'],
-                         self.commands[command]['sub'],
-                         global_mode)
+        # all command sequences start with the inverter address and command
+        # code, this is the start of our command sequence tuple
+        _stem_t = (self.address, command_code)
+        # the rest of the command sequence tuple depends on what we have been
+        # asked to send
+
+        # do we have a parameter 1 (p1) to send?
+        if p1 is not None:
+            # We have a parameter 1, this is the next byte in our sequence. But
+            # do we have a second parameter? If we do then parameter 2 is next
+            # after parameter 1, otherwise it is parameter 1 by itself.
+            command_t = _stem_t + (p1, p2) if p2 is not None else _stem_t + (p1, )
         elif payload is not None:
-            # We have no sub-command, but we have a payload. As the payload is
-            # a bytestring we can convert the payload to a tuple with a simple
-            # list comprehension
+            # We have no parameters, but we have a payload. Our command
+            # sequence tuple consists of the stem followed by the payload.
+
+            # as the payload is a bytestring we can convert the payload to a
+            # tuple with a simple list comprehension
             payload_t = tuple([b for b in payload])
-            command_t = (address, self.commands[command]['cmd']) + payload_t
+            # now construct the command sequence tuple
+            command_t = _stem_t + payload_t
         else:
-            # we have no sub-command or payload
-            command_t = (address, self.commands[command]['cmd'])
-        # pad out the tuple with 0s until it's length is 8 (10 bytes - 2 bytes
-        # for CRC)
+            # we have no parameters or payload so our command sequence tuple
+            # is simply the already constructed stem
+            command_t = _stem_t
+        # now pad out the tuple with 0s until it's length is 8 (10 bytes -
+        # 2 bytes for CRC)
         padded_command_t = command_t + (0,) * (8 - len(command_t))
         # create a bytes object by packing our command tuple items
         command_bytes = struct.pack('8B', *padded_command_t)
-        # add the CRC
+        # add the CRC and return our byte sequence
         return command_bytes + self.word2struct(self.crc16(command_bytes))
 
     @staticmethod
     def _dec_state(v):
         """Decode an inverter state request response.
 
-        To be written.
+        An inverter state request response is in the following format:
+
+        byte 0: transmission state
+        byte 1: global state
+        byte 2: inverter state
+        byte 3: DC/DC channel 1 state
+        byte 4: DC/DC channel 2 state
+        byte 5: alarm state
+
+        where each byte represents am integer value.
+
+        Input:
+            v: bytearray containing the 6 byte response
+
+        Returns:
+            A ResponseTuple where the data attribute is a 4-way tuple of
+            integers representing (in order) the inverter state, DC/DC
+            channel 1 state, DC/DC channel 2 state and the alarm state.
         """
 
         try:
-            return ResponseTuple(int(v[0]), int(v[1]), (int(v[2]),
-                                 int(v[3]), int(v[4]), int(v[5])))
+            return ResponseTuple(int(v[0]), int(v[1]),
+                                 (int(v[2]), int(v[3]), int(v[4]), int(v[5])))
         except (IndexError, TypeError):
             return ResponseTuple(None, None, None)
 
@@ -1389,10 +1542,7 @@ class AuroraInverter(object):
         """
 
         try:
-            tx_state = int(v[0])
-            g_state = int(v[1])
-            ascii_str = str(v[2:6].decode())
-            return ResponseTuple(tx_state, g_state, ascii_str)
+            return ResponseTuple(int(v[0]), int(v[1]), str(v[2:6].decode()))
         except (IndexError, TypeError):
             return ResponseTuple(None, None, None)
 
@@ -1564,10 +1714,7 @@ class AuroraInverter(object):
             None and the data attribute is a 4 character ASCII string.
         """
 
-        try:
-            return AuroraInverter._dec_ascii_and_state(v)
-        except (IndexError, TypeError):
-            return ResponseTuple(None, None, None)
+        return AuroraInverter._dec_ascii_and_state(v)
 
     @staticmethod
     def _dec_alarms(v):
@@ -1586,7 +1733,7 @@ class AuroraInverter(object):
             v: bytearray containing the 6 byte response
 
         Returns:
-           A ResponseTuple where data attribute is a 4 way tuple of alarm
+           A ResponseTuple where data attribute is a 4-way tuple of alarm
            codes.
         """
 
@@ -1628,14 +1775,14 @@ class AuroraConfigurator(weewx.drivers.AbstractConfigurator):
     def usage(self):
         """weectl device usage information."""
 
-        return """%prog --help
+        return f"""{bcolors.BOLD}%prog --help
        %prog --version 
        %prog --live-data [FILENAME|--config=FILENAME]
        %prog --gen-packets [FILENAME|--config=FILENAME]
        %prog --status [FILENAME|--config=FILENAME]
        %prog --info [FILENAME|--config=FILENAME]
        %prog --time [FILENAME|--config=FILENAME]
-       %prog --set-time [FILENAME|--config=FILENAME]"""
+       %prog --set-time [FILENAME|--config=FILENAME]{bcolors.ENDC}"""
 
     @property
     def epilog(self):
@@ -1923,7 +2070,6 @@ class DirectAurora(object):
             print("No option selected, nothing done")
             print()
             self.parser.print_help()
-            return
 
     def test_driver(self):
         """Exercise the aurora driver.
@@ -2176,10 +2322,10 @@ def main():
     usage = f"""{bcolors.BOLD}%(prog)s --help
                  --version 
                  --gen-packets [--config=FILENAME]
-                 --get-status [--config=FILENAME]
-                 --get-info [--config=FILENAME]
-                 --get-readings [--config=FILENAME]
-                 --get-time [--config=FILENAME]
+                 --status [--config=FILENAME]
+                 --info [--config=FILENAME]
+                 --readings [--config=FILENAME]
+                 --time [--config=FILENAME]
                  --set-time [--config=FILENAME]
                  --port{bcolors.ENDC}
     """
@@ -2204,19 +2350,19 @@ def main():
                         dest='gen',
                         action='store_true',
                         help='Output LOOP packets indefinitely.')
-    parser.add_argument('--get-status',
+    parser.add_argument('--status',
                         dest='status',
                         action='store_true',
                         help='Display inverter status.')
-    parser.add_argument('--get-info',
+    parser.add_argument('--info',
                         dest='info',
                         action='store_true',
                         help='Display inverter information.')
-    parser.add_argument('--get-readings',
+    parser.add_argument('--readings',
                         dest='readings',
                         action='store_true',
                         help='Display current inverter readings.')
-    parser.add_argument('--get-time',
+    parser.add_argument('--time',
                         dest='get_time',
                         action='store_true',
                         help='Display current inverter date-time.')
