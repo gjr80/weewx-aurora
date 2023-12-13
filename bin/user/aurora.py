@@ -2291,6 +2291,7 @@ def main():
 
     # WeeWX imports
     import weecfg
+    import weeutil.logger
 
     from weeutil.weeutil import bcolors, to_sorted_string
 
@@ -2371,7 +2372,7 @@ def main():
     weeutil.logger.setup('weewx', config_dict)
 
     # get a DirectAurora object
-    direct_aurora = DirectAurora(namespace, parser, aurora_dict)
+    direct_aurora = DirectAurora(namespace, parser, **aurora_dict)
     # now let the DirectAurora object process the arguments
     direct_aurora.process_arguments()
     exit(1)
