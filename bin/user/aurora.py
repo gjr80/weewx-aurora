@@ -146,7 +146,7 @@ import time
 import weeutil
 import weewx.drivers
 import weewx.units
-from weeutil.weeutil import bcolors
+from weeutil.weeutil import bcolors, timestamp_to_string
 
 # get a logger object
 log = logging.getLogger(__name__)
@@ -748,9 +748,10 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         except weewx.WeeWxIOError:
             # If we have a weewx.WeeWxIOError the inverter could not be
             # contacted or did not return valid data, most likely the inverter
-            # is asleep. Assume the inverter is asleep and raise a
+            # is asleep. Assume the inverter is asleep, log it and raise a
             # NotImplementedError
-            raise NotImplementedError("getTime: Could not contact inverter, it may be asleep")
+            log.error("getTime: Could not contact inverter, it may be asleep")
+            raise NotImplementedError("Could not contact inverter, it may be asleep")
         except Exception as e:
             # some other exception occurred, log it and raise it
             log.error("getTime: Unexpected exception")
@@ -1767,7 +1768,7 @@ class AuroraConfigurator(weewx.drivers.AbstractConfigurator):
        %prog --gen-packets [FILENAME|--config=FILENAME]
        %prog --status [FILENAME|--config=FILENAME]
        %prog --info [FILENAME|--config=FILENAME]
-       %prog --time [FILENAME|--config=FILENAME]
+       %prog --get-time [FILENAME|--config=FILENAME]
        %prog --set-time [FILENAME|--config=FILENAME]{bcolors.ENDC}"""
 
     @property
@@ -1840,21 +1841,8 @@ class AuroraConfigurator(weewx.drivers.AbstractConfigurator):
         weeutil.logger.setup('weewx', config_dict)
 
         # get anAurora driver object
-        aurora = AuroraDriver(**stn_dict)
-        if options.live:
-            pass
-        elif options.gen:
-            pass
-        elif options.status:
-            pass
-        elif options.info:
-            pass
-        elif options.get_time:
-            pass
-        elif options.set_time:
-            pass
-        else:
-            pass
+        aurora = DirectAurora(options, parser, **stn_dict)
+        aurora.process_arguments()
 
 
 # ============================================================================
@@ -1993,7 +1981,7 @@ class DirectAurora(object):
 
     DEFAULT_PORT = '/dev/ttyUSB0'
 
-    def __init__(self, namespace, parser, aurora_dict):
+    def __init__(self, namespace, parser, **aurora_dict):
         """Initialise a DirectAurora object."""
 
         # save the argparse arguments and parser
@@ -2018,7 +2006,7 @@ class DirectAurora(object):
         """
 
         # obtain a port number from the command line options
-        port = self.namespace.port if self.namespace.port else None
+        port = self.namespace.port if hasattr(self.namespace, 'port') and self.namespace.port else None
         # if we didn't get a port check the inverter config dict
         if port is None:
             # obtain the port from the inverter config dict
@@ -2304,7 +2292,7 @@ def main():
     # WeeWX imports
     import weecfg
 
-    from weeutil.weeutil import bcolors, timestamp_to_string, to_sorted_string
+    from weeutil.weeutil import bcolors, to_sorted_string
 
     usage = f"""{bcolors.BOLD}%(prog)s --help
                  --version 
