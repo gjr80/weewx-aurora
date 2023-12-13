@@ -132,6 +132,8 @@ The options can be selected using:
 
     where option is one of the options listed by --help
 """
+# TODO. Should TRANSMISSION, GLOBAL, INVERTER, DCDC and ALARMS reside in AuroraDriver or AuroraInverter?
+# TODO. Is get_dsp() required?
 
 
 # Python imports
@@ -320,38 +322,6 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                           'partialEnergy': 'partialEnergy'
                           }
 
-    # lookup table used to determine inverter command to be used for each raw
-    # data packet field
-    SENSOR_LOOKUP = {'inverterDateTime': 'getTimeDate',
-                     'str1V': 'getStr1V',
-                     'str1C': 'getStr1C',
-                     'str1P': 'getStr1P',
-                     'str2V': 'getStr2V',
-                     'str2C': 'getStr2C',
-                     'str2P': 'getStr2P',
-                     'gridV': 'getGridV',
-                     'gridC': 'getGridC',
-                     'gridP': 'getGridP',
-                     'frequency': 'getFrequency',
-                     'inverterT': 'getInverterT',
-                     'boosterT': 'getBoosterT',
-                     'bulkV': 'getBulkV',
-                     'isoR': 'getIsoR',
-                     'bulkMidV': 'getBulkMidV',
-                     'bulkDcV': 'getBulkDcV',
-                     'leakDcC': 'getLeakDcC',
-                     'leakC': 'getLeakC',
-                     'gridDcV': 'getGridDcV',
-                     'gridAvV': 'getGridAvV',
-                     'gridNV': 'getGridNV',
-                     'gridDcFreq': 'getGridDcFreq',
-                     'dayEnergy': 'getDayEnergy',
-                     'weekEnergy': 'getWeekEnergy',
-                     'monthEnergy': 'getMonthEnergy',
-                     'yearEnergy': 'getYearEnergy',
-                     'totalEnergy': 'getTotalEnergy',
-                     'partialEnergy': 'getPartialEnergy'
-                     }
     # transmission state code map
     TRANSMISSION = {0: 'Everything is OK',
                     51: 'Command is not implemented',
@@ -549,7 +519,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
 
         # model
         self.model = inverter_dict.get('model', 'Aurora')
-        log.info('%s driver version is %s' % (self.model, DRIVER_VERSION))
+        log.info('%s driver version is %s', self.model, DRIVER_VERSION)
         # serial comms options
         try:
             port = inverter_dict.get('port')
@@ -570,11 +540,14 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         wait_before_retry = float(inverter_dict.get('wait_before_retry', 1.0))
         command_delay = float(inverter_dict.get('command_delay', 0.05))
 
-        log.info("   port: '%s' baudrate: %d "
-                 "read_timeout: %.1f write_timeout: %.1fd" % (port, baudrate,
-                                                              read_timeout, write_timeout))
-        log.info('   wait_before_retry: %.1f command_delay: %.2f' % (wait_before_retry,
-                                                                     command_delay))
+        log.info("   port: '%s' baudrate: %d read_timeout: %.1f write_timeout: %.1fd",
+                 port,
+                 baudrate,
+                 read_timeout,
+                 write_timeout)
+        log.info('   wait_before_retry: %.1f command_delay: %.2f',
+                 wait_before_retry,
+                 command_delay)
         # driver options
         max_command_tries = int(inverter_dict.get('max_command_tries', 3))
         # get the inverter poll interval to be used, we need to handle the legacy loop_interval
@@ -592,11 +565,13 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         # get the sensor map
         self.sensor_map = inverter_dict.get('sensor_map',
                                             AuroraDriver.DEFAULT_SENSOR_MAP)
-        log.info("   inverter address: %d poll_interval: %d seconds" % (address,
-                                                                        self.poll_interval))
-        log.info('   max_command_tries: %d max_loop_tries: %d' % (max_command_tries,
-                                                                  self.max_loop_tries))
-        log.info('   sensor_map: %s' % (self.sensor_map, ))
+        log.info("   inverter address: %d poll_interval: %d seconds",
+                 address,
+                 self.poll_interval)
+        log.info('   max_command_tries: %d max_loop_tries: %d',
+                 max_command_tries,
+                 self.max_loop_tries)
+        log.info('   sensor_map: %s', self.sensor_map)
         # get an AuroraInverter object
         self.inverter = AuroraInverter(port,
                                        baudrate=baudrate,
@@ -606,8 +581,6 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                                        wait_before_retry=wait_before_retry,
                                        command_delay=command_delay,
                                        max_tries=max_command_tries)
-        # open up the connection to the inverter
-        self.openPort()
         # is the inverter running ie global state '6' (Run)
         self.running = self.do_cmd('getState').global_state == 6
         # initialise last energy value
@@ -617,7 +590,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         self.none_packet = {}
         # now iterate over the fields we expect entering their 'none packet'
         # values in the dict
-        for field in AuroraDriver.SENSOR_LOOKUP:
+        for field in self.sensor_map.keys():
             self.none_packet[field] = None
 
     def openPort(self):
@@ -639,95 +612,83 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
 
         while int(time.time()) % self.poll_interval != 0:
             time.sleep(0.2)
-        for count in range(self.max_loop_tries):
-            while True:
-                try:
-                    # get the current time as timestamp
-                    _ts = int(time.time())
-                    # poll the inverter and obtain raw data
-                    if weewx.debug >= 2:
-                        log.debug("genLoopPackets: polling inverter for data")
-                    if self.running:
-                        raw_packet = self.get_raw_packet()
-                    else:
-                        self.running = self.do_cmd('getState').global_state == 6
-                        if self.running:
-                            raw_packet = self.get_raw_packet()
-                        else:
-                            raw_packet = self.none_packet
-                    if weewx.debug >= 2:
-                        log.debug("genLoopPackets: received raw data packet: %s" % (raw_packet, ))
-                    # process raw data and return a dict that can be used as a
-                    # LOOP packet
-                    packet = self.process_raw_packet(raw_packet)
-                    # add in/set fields that require special consideration
-                    if packet:
-                        # dateTime
-                        packet['dateTime'] = _ts
+        while True:
+            # get the current time as timestamp
+            _ts = int(time.time())
+            # log that we are about to poll for data
+            if weewx.debug >= 2:
+                log.debug("genLoopPackets: polling inverter for data")
 
-                        # usUnits - set to METRIC
-                        packet['usUnits'] = weewx.METRIC
+            # poll the inverter and obtain raw data
+            # if the inverter is known to be running then just get the raw data
+            if self.inverter.is_running:
+                _raw_packet = self.get_raw_packet()
+            else:
+                # The inverter isn't running, but the last check may have been
+                # poll_interval seconds ago, the inverter may have started
+                # running since. Get the inverter state, this will force an
+                # update of the inverter is_running property.
+                _state = self.inverter.get_state()
+                # now try to get a raw data packet from the inverter, if we
+                # cannot get a raw data packet use a 'None' packet
+                if self.inverter.is_running:
+                    # the inverter is running so get a raw data packet
+                    _raw_packet = self.get_raw_packet()
+                else:
+                    # the inverter is not running so use a 'None' packet
+                    _raw_packet = self.none_packet
 
-                        # dayEnergy is cumulative by day but we need
-                        # incremental values so we need to calculate it based
-                        # on the last cumulative value
-                        if 'dayEnergy' in packet:
-                            packet['energy'] = self.calculate_energy(packet['dayEnergy'],
-                                                                     self.last_energy)
-                            self.last_energy = packet['dayEnergy']
-                        else:
-                            packet['energy'] = None
-                            self.last_energy = None
+            # log the raw data
+            if weewx.debug >= 2:
+                log.debug("genLoopPackets: received raw data packet: %s", _raw_packet)
+            # process the raw data to obtain a dict that can be used as a LOOP
+            # packet
+            packet = self.process_raw_packet(_raw_packet)
+            # now add in/set any fields that require special consideration
+            if packet:
+                # dateTime, use our timestamp from earlier
+                packet['dateTime'] = _ts
+                # usUnits - set to METRIC
+                packet['usUnits'] = weewx.METRIC
+                # energy - the per-period energy value. The inverter reports
+                # dayEnergy which is cumulative by day, but we need a
+                # per-period value. So calculate the per-period value as the
+                # difference between the current and previous dayEnergy values.
+                if 'dayEnergy' in packet:
+                    packet['energy'] = self.calculate_energy(packet['dayEnergy'],
+                                                             self.last_energy)
+                    self.last_energy = packet['dayEnergy']
+                else:
+                    # dayEnergy is not in the packet so we should not add
+                    # energy to the packet, even with a None value. However, we
+                    # need to set the last_energy property None.
+                    self.last_energy = None
+                # log the loop packet
+                if weewx.debug >= 2:
+                    log.debug("genLoopPackets: received loop packet: %s", packet)
+                # yield the packet
+                yield packet
+            # wait until it's time to poll again
+            if weewx.debug >= 2:
+                log.debug("genLoopPackets: sleeping")
+            while time.time() < _ts + self.poll_interval:
+                time.sleep(0.2)
 
-                        if weewx.debug >= 2:
-                            log.debug("genLoopPackets: received loop packet: %s" % (packet, ))
-                        yield packet
-                    # wait until it's time to poll again
-                    if weewx.debug >= 2:
-                        log.debug("genLoopPackets: sleeping")
-                    while time.time() < _ts + self.poll_interval:
-                        time.sleep(0.2)
-                except IOError as e:
-                    log.error("LOOP try #%d; error: %s" % (count + 1, e))
-                    break
-        log.error("LOOP max tries (%d) exceeded." % self.max_loop_tries)
-        raise weewx.RetriesExceeded("Max tries exceeded while getting LOOP data.")
-
-    def get_packet(self):
+    def get_raw_packet(self):
         """Get a loop packet from the inverter."""
 
         _packet = {}
         # iterate over each field we need, that is each inverter field in the
         # sensor map
         for weewx_field, inverter_field in self.sensor_fields.items():
-            # get the field value
-            try:
-                _value = self.inverter.get_field(inverter_field)
-            except weewx.WeeWXIOError:
-                continue
+            # get the field value, be prepared to catch a weewx.WeeWxIOError if
+            # the field cannot be obtained from the inverter
+            if self.inverter.is_running:
+                try:
+                    _packet[weewx_field] = self.inverter.get_field(inverter_field)
+                except weewx.WeeWXIOError:
+                    continue
             else:
-                if self.inverter.is_running:
-                    _packet[weewx_field] = _value
-        return _packet
-
-    def get_raw_packet(self):
-        """Get the raw loop data from the inverter."""
-
-        _packet = {}
-        # iterate over each reading we need to get
-        for field, command in AuroraDriver.SENSOR_LOOKUP.items():
-            # get the reading
-            _response = self.do_cmd(command)
-            # If the inverter is running set the running property and save the
-            # data. If the inverter is asleep set the running property only,
-            # there will be no data.
-            if _response.global_state == 6:
-                # inverter is running
-                self.running = True
-                _packet[field] = _response.data
-            else:
-                # inverter is asleep
-                self.running = False
                 break
         return _packet
 
@@ -742,68 +703,53 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
             A limited WeeWX loop packet of mapped raw inverter data.
         """
 
-        # map raw packet readings to loop packet fields using the field map
-        _packet = {}
-        for dest, src in self.sensor_map.items():
-            if src in raw_packet:
-                _packet[dest] = raw_packet[src]
-                # apply any special processing that may be required
-                if src == 'getIsoR':
-                    # isoR is reported in Mohms, we want ohms
-                    try:
-                        _packet[dest] *= 1000000.0
-                    except TypeError:
-                        # field is not numeric so leave it
-                        pass
-        return _packet
-
-    def do_cmd(self, command, payload=None, globall=0):
-        """Send a command to the inverter and return the decoded response.
-
-        Inputs:
-            command: One of the commands from the command vocabulary of the
-                     AuroraInverter object, AuroraInverter.commands. String.
-            global_mode: Global (global_mode=1) or Module (global_mode=0) measurements.
-
-        Returns:
-            Response Tuple with the inverters response to the command. If no
-            response or response could not be decoded then (None, None, None)
-            is returned.
-        """
-
-        try:
-            return self.inverter.execute_cmd_with_crc(command,
-                                                      payload=payload,
-                                                      globall=globall,
-                                                      address=self.address,
-                                                      max_tries=self.max_command_tries)
-        except weewx.WeeWxIOError:
-            return ResponseTuple(None, None, None)
+        # apply any special processing that may be required
+        # isoR is reported in Mohms, we want ohms
+        if 'isoResistance' in raw_packet:
+            try:
+                raw_packet['isoResistance'] *= 1000000.0
+            except TypeError:
+                # field is not numeric so leave it
+                pass
+        return raw_packet
 
     def getTime(self):
-        """Get inverter system time and return as an epoch timestamp.
+        """Get inverter system time.
 
         During startup WeeWX uses the 'console' time if available. The way the
         driver tells WeeWX the 'console' time is not available is by raising a
         NotImplementedError error when getTime is called. This is what is
         normally done for stations that do not keep track of time. In the case
         of the Aurora inverter, when it is asleep we cannot get the time so in
-        that case raise a NotImplementedError, if the inverter is awake then
+        that case raise a NotImplementedError, but if the inverter is awake then
         return the time.
 
         Returns:
             An epoch timestamp representing the inverter date-time.
         """
 
-        # get the ts
-        _time_ts = self.do_cmd('getTimeDate').data
-        if _time_ts is None:
-            # if it's None the inverter most likely asleep, though there could
-            # be a communication problem, assume the former and raise a
+        # get the current inverter time, wrap in a try .. except in case we get
+        # an exception due to the inverter sleeping
+        try:
+            _time_ts = self.inverter.get_time()
+        except weewx.WeeWxIOError:
+            # If we have a weewx.WeeWxIOError the inverter could not be
+            # contacted or did not return valid data, most likely the inverter
+            # is asleep. Assume the inverter is asleep and raise a
             # NotImplementedError
             raise NotImplementedError("getTime: Could not contact inverter, it may be asleep")
+        except Exception as e:
+            # some other exception occurred, log it and raise it
+            log.error("getTime: Unexpected exception")
+            log.error("  ***** %s", e)
+            raise
         else:
-            #  otherwise return the time
+            # we received a response, but is it a valid timestamp or None
+            if _time_ts is None:
+                # a valid response was received from the inverter, but it could
+                # not be decoded. Log it and continue, we will return the None
+                # value.
+                log.debug("getTime: Invalid timestamp received")
             return _time_ts
 
     def setTime(self):
@@ -817,58 +763,29 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         inverter is awake then the time is set.
         """
 
-        # check if the inverter is online, we will get None if the inverter
-        # cannot be contacted
-        _time_ts = self.do_cmd('getTimeDate').data
-        # if it's None the inverter most likely asleep, though there could
-        # be a communication problem, assume the former and raise a
-        # NotImplementedError
-        if _time_ts is None:
-            raise NotImplementedError("setTime: Could not contact inverter, it may be asleep")
+        # get the current WeeWX system time, offset by 2 seconds to allow for
+        # rounding (0.5) and the delay in the command being issued and acted on
+        # by the inverter (1.5)
+        _ts = int(time.time() + 2)
+        # the inverters epoch is midnight 1 January 2000 so offset our epoch
+        # timestamp accordingly
+        _inv_ts = _ts - 946648800
+        # pack the value into a Struct object so we can get the offset
+        # timestamp as a bytestring, this will be our payload for set_time
+        s = struct.Struct('>i')
+        _inv_ts_b = s.pack(_inv_ts)
+        # send the command and get the response
+        _response = self.inverter.set_time(_inv_ts_b)
+        # If the inverter time was successfully set set_time() will return
+        # True, otherwise it will return False. Use the response to log the
+        # result.
+        if _response:
+            # set_time() completed successfully so log it
+            log.info("Inverter time set")
         else:
-            # get the current system time, offset by 2 seconds to allow for
-            # rounding (0.5) and the delay in the command being issued and
-            # acted on by the inverter (1.5)
-            _ts = int(time.time() + 2)
-            # the inverters epoch is midnight 1 January 2000 so offset our
-            # epoch timestamp
-            _inv_ts = _ts - 946648800
-            # pack the value into a Struct object so we can deal with the bytes
-            s = struct.Struct('>i')
-            _payload = s.pack(_inv_ts)
-            # send the command and get the response
-            _response = self.do_cmd('setTimeDate', payload=_payload)
-            # The inverter response to a successful time set is to return
-            # 8 bytes including transmission state and global state. The
-            # remainder of the 8 bytes is CRC (last 2 bytes) and 0x00 for
-            # remaining bytes. We will get the response as a Response Tuple
-            # where we can check the transmission state and global state.
-            if _response.transmission_state == 0 and _response.global_state == 6:
-                # good response so log it
-                log.info("Inverter time set")
-            else:
-                # something went wrong; it's not fatal, but we need to log the
-                # failure and the returned states
-                log.error("Inverter time was not set")
-                log.error("  ***** transmission state=%d (%s)" % (_response.transmission_state,
-                                                                  AuroraDriver.TRANSMISSION[_response.transmission_state]))
-                log.error("  ***** global state=%d (%s)" % (_response.global_state,
-                                                            AuroraDriver.GLOBAL[_response.global_state]))
-
-    def get_last_alarms(self):
-        """Get the last four alarms."""
-
-        return self.do_cmd('getLastAlarms').data
-
-    def get_dsp(self):
-        """Get DSP data."""
-
-        manifest = dict((k, v) for k, v in self.inverter.commands.items() if v['cmd'] == 59)
-
-        _dsp = {}
-        for reading, params in manifest.items():
-            _dsp[reading] = self.do_cmd(reading, globall=1).data
-        return _dsp
+            # something went wrong and the inverter time was not set; it's not fatal, but we need to log the
+            # failure. Assume any errors were logged further down the chain, so we just simply log the failure.
+            log.error("Inverter time was not set")
 
     @property
     def hardware_name(self):
@@ -876,44 +793,13 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
 
         return self.model
 
-    @property
-    def part_number(self):
-        """The inverter part number."""
-
-        return self.do_cmd('getPartNumber').data
-
-    @property
-    def version(self):
-        """The inverter version."""
-
-        return self.do_cmd('getVersion').data
-
-    @property
-    def serial_number(self):
-        """The inverter firmware release."""
-
-        return self.do_cmd('getSerialNumber').data
-
-    @property
-    def manufacture_date(self):
-        """The inverter firmware release."""
-
-        return self.do_cmd('getManufactureDate').data
-
-    @property
-    def firmware_rel(self):
-        """The inverter firmware release."""
-
-        return self.do_cmd('getFirmwareRelease').data
-
     @staticmethod
     def calculate_energy(newtotal, oldtotal):
         """Calculate energy differential given two cumulative measurements."""
 
         delta = None
-        if newtotal is not None and oldtotal is not None:
-            if newtotal >= oldtotal:
-                delta = newtotal - oldtotal
+        if newtotal is not None and oldtotal is not None and newtotal >= oldtotal:
+            delta = newtotal - oldtotal
         return delta
 
 
@@ -936,7 +822,7 @@ class AuroraInverter(object):
     def __init__(self, port, baudrate=19200, address=2, read_timeout=2.0,
                  write_timeout=2.0, wait_before_retry=1.0,
                  command_delay=0.05, max_tries=3):
-        """Initialise the AuroraInverter object."""
+        """Initialise an AuroraInverter object."""
 
         self.port = port
         self.baudrate = baudrate
@@ -945,59 +831,14 @@ class AuroraInverter(object):
         self.write_timeout = write_timeout
         self.wait_before_retry = wait_before_retry
         self.command_delay = command_delay
-        self.max_tries=max_tries
+        self.max_tries = max_tries
 
-        self.serial_port = None
+        self.open_port()
 
-        # Commands that I know to obtain readings from the Aurora inverter.
-        # Listed against each command is the command and sub-command codes and
-        # applicable decode function.
-        self.commands = {
-            'getState':           {'cmd': 50, 'sub':  None, 'fn': self._dec_state},
-            'getPartNumber':      {'cmd': 52, 'sub':  None, 'fn': self._dec_ascii},
-            'getVersion':         {'cmd': 58, 'sub':  None, 'fn': self._dec_ascii_and_state},
-            'getGridV':           {'cmd': 59, 'sub':  1,    'fn': self._dec_float},
-            'getGridC':           {'cmd': 59, 'sub':  2,    'fn': self._dec_float},
-            'getGridP':           {'cmd': 59, 'sub':  3,    'fn': self._dec_float},
-            'getFrequency':       {'cmd': 59, 'sub':  4,    'fn': self._dec_float},
-            'getBulkV':           {'cmd': 59, 'sub':  5,    'fn': self._dec_float},
-            'getLeakDcC':         {'cmd': 59, 'sub':  6,    'fn': self._dec_float},
-            'getLeakC':           {'cmd': 59, 'sub':  7,    'fn': self._dec_float},
-            'getStr1P':           {'cmd': 59, 'sub':  8,    'fn': self._dec_float},
-            'getStr2P':           {'cmd': 59, 'sub':  9,    'fn': self._dec_float},
-            'getInverterT':       {'cmd': 59, 'sub': 21,    'fn': self._dec_float},
-            'getBoosterT':        {'cmd': 59, 'sub': 22,    'fn': self._dec_float},
-            'getStr1V':           {'cmd': 59, 'sub': 23,    'fn': self._dec_float},
-            'getStr1C':           {'cmd': 59, 'sub': 25,    'fn': self._dec_float},
-            'getStr2V':           {'cmd': 59, 'sub': 26,    'fn': self._dec_float},
-            'getStr2C':           {'cmd': 59, 'sub': 27,    'fn': self._dec_float},
-            'getGridDcV':         {'cmd': 59, 'sub': 28,    'fn': self._dec_float},
-            'getGridDcFreq':      {'cmd': 59, 'sub': 29,    'fn': self._dec_float},
-            'getIsoR':            {'cmd': 59, 'sub': 30,    'fn': self._dec_float},
-            'getBulkDcV':         {'cmd': 59, 'sub': 31,    'fn': self._dec_float},
-            'getGridAvV':         {'cmd': 59, 'sub': 32,    'fn': self._dec_float},
-            'getBulkMidV':        {'cmd': 59, 'sub': 33,    'fn': self._dec_float},
-            'getGridNV':          {'cmd': 59, 'sub': 34,    'fn': self._dec_float},
-            'getDayPeakP':        {'cmd': 59, 'sub': 35,    'fn': self._dec_float},
-            'getPeakP':           {'cmd': 59, 'sub': 36,    'fn': self._dec_float},
-            'getGridNPhV':        {'cmd': 59, 'sub': 38,    'fn': self._dec_float},
-            'getSerialNumber':    {'cmd': 63, 'sub':  None, 'fn': self._dec_ascii},
-            'getManufactureDate': {'cmd': 65, 'sub':  None, 'fn': self._dec_week_year},
-            'getTimeDate':        {'cmd': 70, 'sub':  None, 'fn': self._dec_ts},
-            'setTimeDate':        {'cmd': 71, 'sub':  None, 'fn': self._dec_raw},
-            'getFirmwareRelease': {'cmd': 72, 'sub':  None, 'fn': self._dec_ascii_and_state},
-            'getDayEnergy':       {'cmd': 78, 'sub':  0,    'fn': self._dec_int},
-            'getWeekEnergy':      {'cmd': 78, 'sub':  1,    'fn': self._dec_int},
-            'getMonthEnergy':     {'cmd': 78, 'sub':  3,    'fn': self._dec_int},
-            'getYearEnergy':      {'cmd': 78, 'sub':  4,    'fn': self._dec_int},
-            'getTotalEnergy':     {'cmd': 78, 'sub':  5,    'fn': self._dec_int},
-            'getPartialEnergy':   {'cmd': 78, 'sub':  6,    'fn': self._dec_int},
-            'getLastAlarms':      {'cmd': 86, 'sub':  None, 'fn': self._dec_alarms}
-        }
         # Inverter commands that I know about. Each entry contains the command
         # code to be sent to the inverter as well as the decode function to
         # decode the returned data.
-        self.comands = {
+        self.commands = {
             'state_request':    {'cmd_code': 50, 'fn': self._dec_state},
             'part_number':      {'cmd_code': 52, 'fn': self._dec_ascii},
             'version':          {'cmd_code': 58, 'fn': self._dec_ascii_and_state},
@@ -1009,7 +850,6 @@ class AuroraInverter(object):
             'firmware_release': {'cmd_code': 72, 'fn': self._dec_ascii_and_state},
             'cumulated_energy': {'cmd_code': 78, 'fn': self._dec_int},
             'last_alarms':      {'cmd_code': 86, 'fn': self._dec_alarms}
-
         }
         # 'Fields' that I can populate. Each entry contains the command and, if
         # applicable, any sub-command code to be sent to the inverter.
@@ -1075,15 +915,15 @@ class AuroraInverter(object):
         except serial.SerialException as e:
             # we encountered a serial exception, log it and re-raise
             log.error("SerialException on open.")
-            log.error("  ***** %s" % e)
+            log.error("  ***** %s", e)
             # re-raise as a WeeWX IO error
             raise
         else:
-            log.debug("Opened serial port '%s' baudrate: %d "
-                      "read_timeout: %.2f write_timeout: %.2f" % (self.port,
-                                                                  self.baudrate,
-                                                                  self.read_timeout,
-                                                                  self.write_timeout))
+            log.debug("Opened serial port '%s' baudrate: %d read_timeout: %.2f write_timeout: %.2f",
+                      self.port,
+                      self.baudrate,
+                      self.read_timeout,
+                      self.write_timeout)
 
     def close_port(self):
         """Close a serial port."""
@@ -1112,14 +952,14 @@ class AuroraInverter(object):
             # we encountered a write timeout, log it and re-raise as a WeeWX IO
             # error
             log.error("SerialTimeoutException on write.")
-            log.error("  ***** %s" % e)
+            log.error("  ***** %s", e)
             # re-raise as a WeeWX IO error
             raise weewx.WeeWxIOError(e)
         except serial.SerialException as e:
             # we encountered some other serial exception, log it and re-raise
             # as a WeeWX IO error
             log.error("SerialException on write.")
-            log.error("  ***** %s" % e)
+            log.error("  ***** %s", e)
             # re-raise as a WeeWX error I/O error:
             raise weewx.WeeWxIOError(e)
         # Check the serial.Serial.write() return value. write() always returns
@@ -1151,13 +991,13 @@ class AuroraInverter(object):
             # we encountered a read timeout, log it and re-raise as a WeeWX IO
             # error
             log.error("SerialTimeoutException on read.")
-            log.error("  ***** %s" % e)
+            log.error("  ***** %s", e)
             log.error("  ***** Is there a competing process running??")
             # re-raise as a WeeWX IO error
             raise weewx.WeeWxIOError(e)
         except serial.SerialException as e:
             log.error("SerialException on read.")
-            log.error("  ***** %s % e")
+            log.error("  ***** %s", e)
             log.error("  ***** Is there a competing process running??")
             # re-raise as a WeeWX I/O error:
             raise weewx.WeeWxIOError(e)
@@ -1168,7 +1008,13 @@ class AuroraInverter(object):
         return _buffer
 
     def get_field(self, field_name, source=None):
-        """Obtain the value of a given field using the API."""
+        """Obtain the value of a given field using the API.
+
+        Call execute_cmd_with_crc() to obtain the data required, if valid data
+        cannot be obtained a weewx.WeeWXIOError will be raised by
+        execute_cmd_with_crc(), our caller needs to be prepared to catch the
+        exception.
+        """
 
         response_t = self.execute_cmd_with_crc(command=self.field_commands[field_name]['cmd'],
                                                p1=self.field_commands[field_name].get('p1'),
@@ -1195,7 +1041,11 @@ class AuroraInverter(object):
                      Currently only used by setTime. String.
         The transmission_state and/or global_state properties are updated from
         any command response that includes inverter Transmission State and/or
-        Global State data
+        Global State data.
+
+        Any call to execute_cmd_with_crc() should be prepared to catch a
+        weewx.WeeWxIOError should the inverter not respond with a valid
+        response.
 
         Returns:
             The decoded inverter response to the command as a Response Tuple.
@@ -1209,21 +1059,14 @@ class AuroraInverter(object):
         # now send the assembled command retrying up to max_tries times
         for count in range(self.max_tries):
             if weewx.debug >= 2:
-                log.debug("execute_cmd_with_crc: sent %d" % format_byte_to_hex(_command_bytes_crc))
+                log.debug("execute_cmd_with_crc: sent %d",
+                          format_byte_to_hex(_command_bytes_crc))
             try:
                 self.write(_command_bytes_crc)
                 # wait before reading
                 time.sleep(self.command_delay)
                 # look for the response
                 _resp = self.read_with_crc()
-                _response_t = self.commands[command]['fn'](_resp)
-                # update the global_state and transmission_state properties
-                # from the response if they are not None
-                if _response_t.transmission_state is not None:
-                    self.transmission_state = _response_t.transmission_state
-                if _response_t.global_state is not None:
-                    self.global_state = _response_t.global_state
-                return _response_t
             except weewx.CRCError:
                 # We seem to get occasional CRC errors, once they start they
                 # continue indefinitely. Closing then opening the serial port
@@ -1231,9 +1074,9 @@ class AuroraInverter(object):
                 # continue (until the next one). So if we get a CRC error then
                 # cycle the port and continue.
 
-                if count + 1 < self.max_tries:
+                if count < self.max_tries - 1:
                     # log that we are about to cycle the port
-                    log.info("CRC error on try #%d. Cycling port." % (count + 1, ))
+                    log.info("CRC error on try #%d. Cycling port.", count + 1)
                     # close the port, wait 0.2 sec then open the port
                     self.close_port()
                     time.sleep(0.2)
@@ -1241,35 +1084,72 @@ class AuroraInverter(object):
                     # log that the port has been cycled
                     log.info("Port cycle complete.")
                 else:
-                    log.info("CRC error on try #%d." % (count + 1, ))
-                continue
-            except weewx.WeeWxIOError:
-                pass
-            # Sometimes we seem to get stuck in continuous IO errors. Cycling
-            # the serial port after the second IO error usually fixes the
-            # problem.
-            if count + 1 < self.max_tries:
-                # 1st or 2nd attempt
-                if count + 2 == self.max_tries:
-                    # the 2nd attempt failed so cycle the port
+                    log.info("CRC error on try #%d.", count + 1)
+            except weewx.WeeWxIOError as e:
+                # Sometimes we seem to get stuck with continuous IO errors.
+                # Cycling the serial port after the second IO error or (one try
+                # before the max_tries limit) usually fixes the problem.
+                if count < self.max_tries - 1:
+                    # this is not our last attempt
+                    if count >= 1 or self.max_tries < 3:
+                        # it's either our second attempt or our first attempt
+                        # if max_tries < 3 so cycle the port
+                        if weewx.debug >= 2:
+                            log.debug("%s: attempt #%d unsuccessful... cycling port",
+                                      "execute_cmd_with_crc",
+                                      count + 1)
+                        # to cycle the port close the port, wait 0.2 sec then
+                        # open the port
+                        self.close_port()
+                        time.sleep(0.2)
+                        self.open_port()
+                        # log that the port has been cycled
+                        if weewx.debug >= 2:
+                            log.debug("execute_cmd_with_crc: port cycle complete.")
+                    else:
+                        # it must be our first attempt, so log the failure and
+                        # have a short sleep until the next attempt
+                        if weewx.debug >= 2:
+                            log.debug("%s: try #%d unsuccessful... sleeping",
+                                      "execute_cmd_with_crc",
+                                      count + 1)
+                        time.sleep(self.wait_before_retry)
+                    # we are going to have another attempt, so log it
                     if weewx.debug >= 2:
-                        log.debug("execute_cmd_with_crc: try #%d unsuccessful... cycling port" % (count + 1, ))
-                    # close the port, wait 0.2 sec then open the port
-                    self.close_port()
-                    time.sleep(0.2)
-                    self.open_port()
-                    # log that the port has been cycled
-                    if weewx.debug >= 2:
-                        log.debug("execute_cmd_with_crc: port cycle complete.")
+                        log.debug("execute_cmd_with_crc: retrying")
                 else:
+                    # this was our last attempt, so log it as unsuccessful
                     if weewx.debug >= 2:
-                        log.debug("execute_cmd_with_crc: try #%d unsuccessful... sleeping" % (count + 1, ))
-                    time.sleep(self.wait_before_retry)
-                if weewx.debug >= 2:
-                    log.debug("execute_cmd_with_crc: retrying")
+                        log.debug("execute_cmd_with_crc: try #%d unsuccessful",
+                                  count + 1)
             else:
-                if weewx.debug >= 2:
-                    log.debug("execute_cmd_with_crc: try #%d unsuccessful" % (count + 1,))
+                # We have a response that has passed the CRC check, now decode
+                # it. Wrap in a try .. except in case there is a problem
+                # decoding the response
+                try:
+                    _response_t = self.commands[command]['fn'](_resp)
+                except (IndexError, TypeError):
+                    # for some reason the data could not be decoded, log it but
+                    # at a higher debug level
+                    if weewx.debug >= 2:
+                        log.debug("%s: '%s' could not decode response '%s'",
+                                  "execute_cmd_with_crc",
+                                  self.commands[command]['fn'].__name__,
+                                  format_byte_to_hex(_resp))
+                    # return a 'None' ResponseTuple
+                    return ResponseTuple(None, None, None)
+                else:
+                    # we received a valid, decoded response
+                    # update the global_state and transmission_state properties
+                    # from the response if they are not None
+                    if _response_t.transmission_state is not None:
+                        self.transmission_state = _response_t.transmission_state
+                    if _response_t.global_state is not None:
+                        self.global_state = _response_t.global_state
+                    # finally return the ResponseTuple
+                    return _response_t
+        # if we made it here we have exhausted our attempts to obtain data from
+        # the inverter, log it and raise a WeeWXIOError
         log.debug("Unable to send or receive data to/from the inverter")
         raise weewx.WeeWxIOError("Unable to send or receive data to/from the inverter")
 
@@ -1291,7 +1171,7 @@ class AuroraInverter(object):
         _response = self.read(bytes_to_read=bytes_to_read)
         # log the hex bytes received
         if weewx.debug >= 2:
-            log.debug("read %s" % format_byte_to_hex(_response))
+            log.debug("read %s", format_byte_to_hex(_response))
         # check the CRC and strip out the pay load
         return self.strip_crc16(_response)
 
@@ -1341,7 +1221,14 @@ class AuroraInverter(object):
 
     @staticmethod
     def strip_crc16(buffer):
-        """Strip CRC bytes from an inverter response."""
+        """Strip CRC bytes from an inverter response.
+
+        Input:
+
+            buffer:
+
+        Returns:
+             a bytearray"""
 
         # get the data payload
         data = buffer[:-2]
@@ -1355,10 +1242,11 @@ class AuroraInverter(object):
             return bytearray(data)
         else:
             log.error("Inverter response failed CRC check:")
-            log.error("  ***** response=%s" % (format_byte_to_hex(buffer)))
-            log.error("  *****     data=%s        CRC=%s  expected CRC=%s" % (format_byte_to_hex(data),
-                                                                              format_byte_to_hex(crc_bytes),
-                                                                              format_byte_to_hex(crc)))
+            log.error("  ***** response=%s", format_byte_to_hex(buffer))
+            log.error("  *****     data=%s        CRC=%s  expected CRC=%s",
+                      format_byte_to_hex(data),
+                      format_byte_to_hex(crc_bytes),
+                      format_byte_to_hex(crc))
             raise weewx.CRCError("Inverter response failed CRC check")
 
     @staticmethod
@@ -1742,6 +1630,88 @@ class AuroraInverter(object):
             return ResponseTuple(int(v[0]), int(v[1]), _alarms)
         except (IndexError, TypeError):
             return ResponseTuple(None, None, None)
+
+    def get_state(self):
+        """Get the inverter state.
+
+        Indirectly updates the global_state and transmission_state properties.
+        """
+
+        return self.execute_cmd_with_crc("state_request").data
+
+    def get_time(self):
+        """Get inverter system time.
+
+        Obtain the inverter system time and return as an epoch timestamp. If
+        the inverter is asleep the value None will be returned.
+
+        Returns:
+            An epoch timestamp or None.
+        """
+
+        return self.execute_cmd_with_crc('read_time_date').data
+
+    def set_time(self, inverter_ts):
+        """Set inverter system time.
+
+        Set the inverter system time to the offset timestamp value inverter_ts.
+        If the 'set_time_date' command executed successfully the command
+        returns a ResponseTuple object where:
+        - inverter transmission state == 0
+        - inverter global state == 6 (ie self.is_running == True)
+        - a valid CRC
+
+        The validity of the CRC is confirmed as part of the command execution,
+        the other two conditions we check here and if met we return True. If
+        the other two conditions were not met we return False indicating the
+        command did not complete successfully.
+
+        Returns:
+            True for successful execution or False for unsuccessful execution.
+        """
+
+        response_t = self.execute_cmd_with_crc('set_time_date', p1=inverter_ts)
+        # update the global state and transmission state properties
+        self.global_state = response_t.global_state
+        self.transmission_state = response_t.transmission_state
+        # return True or False
+        return self.transmission_state == 0 and self.is_running
+
+    @property
+    def last_alarms(self):
+        """Get the last four alarms."""
+
+        return self.execute_cmd_with_crc('last_alarms').data
+
+    @property
+    def part_number(self):
+        """The inverter part number."""
+
+        return self.execute_cmd_with_crc('part_number').data
+
+    @property
+    def version(self):
+        """The inverter version."""
+
+        return self.execute_cmd_with_crc('version').data
+
+    @property
+    def serial_number(self):
+        """The inverter firmware release."""
+
+        return self.execute_cmd_with_crc('serial_number').data
+
+    @property
+    def manufacture_date(self):
+        """The inverter firmware release."""
+
+        return self.execute_cmd_with_crc('manufacture_date').data
+
+    @property
+    def firmware_release(self):
+        """The inverter firmware release."""
+
+        return self.execute_cmd_with_crc('firmware_release').data
 
 
 # ============================================================================
@@ -2306,6 +2276,7 @@ where:
   --get-time      - display inverter time
   --set-time      - set inverter time to the current system time
 """
+
 
 def main():
 
