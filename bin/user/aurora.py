@@ -146,6 +146,7 @@ import time
 import weeutil
 import weewx.drivers
 import weewx.units
+from weeutil.weeutil import bcolors
 
 # get a logger object
 log = logging.getLogger(__name__)
@@ -153,6 +154,16 @@ log = logging.getLogger(__name__)
 # our name and version number
 DRIVER_NAME = 'Aurora'
 DRIVER_VERSION = '0.7.0a1'
+
+# config defaults
+DEFAULT_POLL_INTERVAL = 20
+DEFAULT_COMMAND_DELAY = 0.05
+DEFAULT_BAUDRATE = 19200
+DEFAULT_READ_TIMEOUT = 2
+DEFAULT_WRITE_TIMEOUT = 2
+DEFAULT_MAX_COMMAND_TRIES = 3
+DEFAULT_ADDRESS = 2
+DEFAULT_WAIT_BEFORE_RETRY = 1
 
 
 def define_units():
@@ -525,7 +536,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
             port = inverter_dict.get('port')
         except KeyError:
             raise Exception("Required parameter 'port' was not specified.")
-        baudrate = int(inverter_dict.get('baudrate', 19200))
+        baudrate = int(inverter_dict.get('baudrate', DEFAULT_BAUDRATE))
         # get the read timeout to be used, we need to handle the legacy timeout
         # config option if it was used
         _legacy_timeout = inverter_dict.get('timeout')
@@ -535,10 +546,10 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         elif _legacy_timeout is not None:
             read_timeout = float(_legacy_timeout)
         else:
-            read_timeout = 2.0
-        write_timeout = float(inverter_dict.get('write_timeout', 2.0))
-        wait_before_retry = float(inverter_dict.get('wait_before_retry', 1.0))
-        command_delay = float(inverter_dict.get('command_delay', 0.05))
+            read_timeout = DEFAULT_READ_TIMEOUT
+        write_timeout = float(inverter_dict.get('write_timeout', DEFAULT_WRITE_TIMEOUT))
+        wait_before_retry = float(inverter_dict.get('wait_before_retry', DEFAULT_WAIT_BEFORE_RETRY))
+        command_delay = float(inverter_dict.get('command_delay', DEFAULT_COMMAND_DELAY))
 
         log.info("   port: '%s' baudrate: %d read_timeout: %.1f write_timeout: %.1fd",
                  port,
@@ -549,9 +560,10 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                  wait_before_retry,
                  command_delay)
         # driver options
-        max_command_tries = int(inverter_dict.get('max_command_tries', 3))
-        # get the inverter poll interval to be used, we need to handle the legacy loop_interval
-        # config option if it was used
+        max_command_tries = int(inverter_dict.get('max_command_tries',
+                                                  DEFAULT_MAX_COMMAND_TRIES))
+        # get the inverter poll interval to be used, we need to handle the
+        # legacy loop_interval config option if it was used
         _legacy_loop_interval = inverter_dict.get('loop_interval')
         _poll_interval = inverter_dict.get('poll_interval')
         if _poll_interval is not None:
@@ -559,8 +571,9 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         elif _legacy_loop_interval is not None:
             self.poll_interval = int(_legacy_loop_interval)
         else:
-            self.poll_interval = 10
-        address = int(inverter_dict.get('address', 2))
+            self.poll_interval = DEFAULT_POLL_INTERVAL
+        address = int(inverter_dict.get('address', DEFAULT_ADDRESS))
+        #TODO. is max_loop_tries required ?
         self.max_loop_tries = int(inverter_dict.get('max_loop_tries', 3))
         # get the sensor map
         self.sensor_map = inverter_dict.get('sensor_map',
@@ -581,8 +594,8 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                                        wait_before_retry=wait_before_retry,
                                        command_delay=command_delay,
                                        max_tries=max_command_tries)
-        # is the inverter running ie global state '6' (Run)
-        self.running = self.do_cmd('getState').global_state == 6
+#        # is the inverter running ie global state '6' (Run)
+#        self.running = self.do_cmd('getState').global_state == 6
         # initialise last energy value
         self.last_energy = None
         # build a 'none' packet to use when the inverter is offline, first
@@ -819,8 +832,8 @@ class AuroraInverter(object):
     DEFAULT_PORT = '/dev/ttyUSB0'
     DEFAULT_ADDRESS = '2'
 
-    def __init__(self, port, baudrate=19200, address=2, read_timeout=2.0,
-                 write_timeout=2.0, wait_before_retry=1.0,
+    def __init__(self, port, baudrate=DEFAULT_BAUDRATE, address=DEFAULT_ADDRESS, read_timeout=DEFAULT_READ_TIMEOUT,
+                 write_timeout=DEFAULT_WRITE_TIMEOUT, wait_before_retry=DEFAULT_WAIT_BEFORE_RETRY,
                  command_delay=0.05, max_tries=3):
         """Initialise an AuroraInverter object."""
 
@@ -832,8 +845,6 @@ class AuroraInverter(object):
         self.wait_before_retry = wait_before_retry
         self.command_delay = command_delay
         self.max_tries = max_tries
-
-        self.open_port()
 
         # Inverter commands that I know about. Each entry contains the command
         # code to be sent to the inverter as well as the decode function to
@@ -897,6 +908,11 @@ class AuroraInverter(object):
         }
         self.global_state = None
         self.transmission_state = None
+        self.open_port()
+        try:
+            _ = self.get_state()
+        except weewx.WeeWxIOError:
+            pass
 
     @property
     def is_running(self) -> bool:
@@ -1052,7 +1068,7 @@ class AuroraInverter(object):
         """
 
         # get the command message to be sent including CRC
-        _command_bytes_crc = self.construct_cmd_message(command_code=self.commands[command]['command_code'],
+        _command_bytes_crc = self.construct_cmd_message(command_code=self.commands[command]['cmd_code'],
                                                         p1=p1,
                                                         p2=p2,
                                                         payload=payload)
@@ -1786,7 +1802,7 @@ class AuroraConfigurator(weewx.drivers.AbstractConfigurator):
                           dest='info',
                           action='store_true',
                           help='Display inverter information.')
-        parser.add_option('--time',
+        parser.add_option('--get-time',
                           dest='get_time',
                           action='store_true',
                           help='Display current inverter date-time.')
