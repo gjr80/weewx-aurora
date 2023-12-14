@@ -499,7 +499,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         _packet = {}
         # iterate over each field we need, that is each inverter field in the
         # sensor map
-        for weewx_field, inverter_field in self.sensor_fields.items():
+        for weewx_field, inverter_field in self.sensor_map.items():
             # get the field value, be prepared to catch a weewx.WeeWxIOError if
             # the field cannot be obtained from the inverter
             if self.inverter.is_running:
@@ -2083,30 +2083,37 @@ class DirectAurora(object):
         """
 
         log.info("Testing Aurora driver...")
-        if self.namespace.poll_interval:
+        if hasattr(self.namespace, 'poll_interval') and self.namespace.poll_interval:
             self.aurora_dict['poll_interval'] = self.namespace.poll_interval
-        if self.namespace.max_tries:
+        if hasattr(self.namespace, 'max_tries') and self.namespace.max_tries:
             self.aurora_dict['max_tries'] = self.namespace.max_tries
-        if self.namespace.retry_wait:
+        if hasattr(self.namespace, 'retry_wait') and self.namespace.retry_wait:
             self.aurora_dict['retry_wait'] = self.namespace.retry_wait
-        # wrap in a try..except in case there is an error
+        # first get an AuroraDriver object, wrap in a try .. except so we can
+        # catch any exceptions, particularly if the inverter is asleep
         try:
-            # get a AuroraDriver object
-            driver = AuroraDriver(**self.aurora_dict)
+            driver = AuroraDriver(port=self.port)
+        except Exception as e:
+            # could not load the driver, inform the user and display any error
+            # message
+            print()
+            print("Unable to load driver: %s" % e)
+        else:
             # identify the device being used
             print()
-            print(f"Interrogating {driver.model} at {driver.inverter.port}")
-            print()
-            # continuously get loop packets and print them to screen
-            for pkt in driver.genLoopPackets():
-                print(f"{weeutil.weeutil.timestamp_to_string(pkt['dateTime'])}: "
-                      f"{weeutil.weeutil.to_sorted_string(pkt)})")
-        except Exception as e:
-            print()
-            print("Unable to connect to device: %s" % e)
-        except KeyboardInterrupt:
-            # we have a keyboard interrupt so shut down
-            driver.closePort()
+            try:
+                print(f"Interrogating {driver.model} at {driver.inverter.port}")
+                print()
+                # continuously get loop packets and print them to screen
+                for pkt in driver.genLoopPackets():
+                    print(f"{weeutil.weeutil.timestamp_to_string(pkt['dateTime'])}: "
+                          f"{weeutil.weeutil.to_sorted_string(pkt)})")
+            except Exception as e:
+                print()
+                print("Unable to connect to device: %s" % e)
+            except KeyboardInterrupt:
+                # we have a keyboard interrupt so shut down
+                driver.closePort()
         log.info("Aurora driver testing complete")
 
     def status(self):
