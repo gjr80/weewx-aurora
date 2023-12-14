@@ -333,198 +333,6 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                           'partialEnergy': 'partialEnergy'
                           }
 
-    # transmission state code map
-    TRANSMISSION = {0: 'Everything is OK',
-                    51: 'Command is not implemented',
-                    52: 'Variable does not exist',
-                    53: 'Variable value is out of range',
-                    54: 'EEprom not accessible',
-                    55: 'Not Toggled Service Mode',
-                    56: 'Can not send the command to internal micro',
-                    57: 'Command not Executed',
-                    58: 'The variable is not available, retry'
-                    }
-
-    # inverter system module state code maps
-
-    # global state
-    GLOBAL = {0: 'Sending Parameters',
-              1: 'Wait Sun/Grid',
-              2: 'Checking Grid',
-              3: 'Measuring Riso',
-              4: 'DcDc Start',
-              5: 'Inverter Start',
-              6: 'Run',
-              7: 'Recovery',
-              8: 'Pause',
-              9: 'Ground Fault',
-              10: 'OTH Fault',
-              11: 'Address Setting',
-              12: 'Self Test',
-              13: 'Self Test Fail',
-              14: 'Sensor Test + Meas.Riso',
-              15: 'Leak Fault',
-              16: 'Waiting for manual reset ',
-              17: 'Internal Error E026',
-              18: 'Internal Error E027',
-              19: 'Internal Error E028',
-              20: 'Internal Error E029',
-              21: 'Internal Error E030',
-              22: 'Sending Wind Table',
-              23: 'Failed Sending table',
-              24: 'UTH Fault',
-              25: 'Remote OFF',
-              26: 'Interlock Fail',
-              27: 'Executing Autotest',
-              30: 'Waiting Sun',
-              31: 'Temperature Fault',
-              32: 'Fan Stacked',
-              33: 'Int. Com. Fault',
-              34: 'Slave Insertion',
-              35: 'DC Switch Open',
-              36: 'TRAS Switch Open',
-              37: 'MASTER Exclusion',
-              38: 'Auto Exclusion ',
-              98: 'Erasing Internal EEprom',
-              99: 'Erasing External EEprom',
-              100: 'Counting EEprom',
-              101: 'Freeze'
-              }
-
-    # inverter state
-    INVERTER = {0: 'Stand By',
-                1: 'Checking Grid',
-                2: 'Run',
-                3: 'Bulk OV',
-                4: 'Out OC',
-                5: 'IGBT Sat',
-                6: 'Bulk UV',
-                7: 'Degauss Error',
-                8: 'No Parameters',
-                9: 'Bulk Low',
-                10: 'Grid OV',
-                11: 'Communication Error',
-                12: 'Degaussing',
-                13: 'Starting',
-                14: 'Bulk Cap Fail',
-                15: 'Leak Fail',
-                16: 'DcDc Fail',
-                17: 'Ileak Sensor Fail',
-                18: 'SelfTest: relay inverter',
-                19: 'SelfTest: wait for sensor test',
-                20: 'SelfTest: test relay DcDc + sensor',
-                21: 'SelfTest: relay inverter fail',
-                22: 'SelfTest timeout fail',
-                23: 'SelfTest: relay DcDc fail',
-                24: 'Self Test 1',
-                25: 'Waiting self test start',
-                26: 'Dc Injection',
-                27: 'Self Test 2',
-                28: 'Self Test 3',
-                29: 'Self Test 4',
-                30: 'Internal Error',
-                31: 'Internal Error',
-                40: 'Forbidden State',
-                41: 'Input UC',
-                42: 'Zero Power',
-                43: 'Grid Not Present',
-                44: 'Waiting Start',
-                45: 'MPPT',
-                46: 'Grid Fail',
-                47: 'Input OC'
-                }
-
-    # DC/DC channel states
-    DCDC = {0: 'DcDc OFF',
-            1: 'Ramp Start',
-            2: 'MPPT',
-            3: 'Not Used',
-            4: 'Input OC',
-            5: 'Input UV',
-            6: 'Input OV',
-            7: 'Input Low',
-            8: 'No Parameters',
-            9: 'Bulk OV',
-            10: 'Communication Error',
-            11: 'Ramp Fail',
-            12: 'Internal Error',
-            13: 'Input mode Error',
-            14: 'Ground Fault',
-            15: 'Inverter Fail',
-            16: 'DcDc IGBT Sat',
-            17: 'DcDc ILEAK Fail',
-            18: 'DcDc Grid Fail',
-            19: 'DcDc Comm Error'
-            }
-
-    # alarm states
-    ALARM = {0:  {'description': 'No Alarm',          'code': None},
-             1:  {'description': 'Sun Low',           'code': 'W001'},
-             2:  {'description': 'Input OC',          'code': 'E001'},
-             3:  {'description': 'Input UV',          'code': 'W002'},
-             4:  {'description': 'Input OV',          'code': 'E002'},
-             5:  {'description': 'Sun Low',           'code': 'W001'},
-             6:  {'description': 'No Parameters',     'code': 'E003'},
-             7:  {'description': 'Bulk OV',           'code': 'E004'},
-             8:  {'description': 'Comm.Error',        'code': 'E005'},
-             9:  {'description': 'Output OC',         'code': 'E006'},
-             10: {'description': 'IGBT Sat',          'code': 'E007'},
-             11: {'description': 'Bulk UV',           'code': 'W011'},
-             12: {'description': 'Internal error',    'code': 'E009'},
-             13: {'description': 'Grid Fail',         'code': 'W003'},
-             14: {'description': 'Bulk Low',          'code': 'E010'},
-             15: {'description': 'Ramp Fail',         'code': 'E011'},
-             16: {'description': 'Dc/Dc Fail',        'code': 'E012'},
-             17: {'description': 'Wrong Mode',        'code': 'E013'},
-             18: {'description': 'Ground Fault',      'code': '---'},
-             19: {'description': 'Over Temp.',        'code': 'E014'},
-             20: {'description': 'Bulk Cap Fail',     'code': 'E015'},
-             21: {'description': 'Inverter Fail',     'code': 'E016'},
-             22: {'description': 'Start Timeout',     'code': 'E017'},
-             23: {'description': 'Ground Fault',      'code': 'E018'},
-             24: {'description': 'Degauss error',     'code': '---'},
-             25: {'description': 'Ileak sens.fail',   'code': 'E019'},
-             26: {'description': 'DcDc Fail',         'code': 'E012'},
-             27: {'description': 'Self Test Error 1', 'code': 'E020'},
-             28: {'description': 'Self Test Error 2', 'code': 'E021'},
-             29: {'description': 'Self Test Error 3', 'code': 'E019'},
-             30: {'description': 'Self Test Error 4', 'code': 'E022'},
-             31: {'description': 'DC inj error',      'code': 'E023'},
-             32: {'description': 'Grid OV',           'code': 'W004'},
-             33: {'description': 'Grid UV',           'code': 'W005'},
-             34: {'description': 'Grid OF',           'code': 'W006'},
-             35: {'description': 'Grid UF',           'code': 'W007'},
-             36: {'description': 'Z grid Hi',         'code': 'W008'},
-             37: {'description': 'Internal error',    'code': 'E024'},
-             38: {'description': 'Riso Low',          'code': 'E025'},
-             39: {'description': 'Vref Error',        'code': 'E026'},
-             40: {'description': 'Error Meas V',      'code': 'E027'},
-             41: {'description': 'Error Meas F',      'code': 'E028'},
-             42: {'description': 'Error Meas Z',      'code': 'E029'},
-             43: {'description': 'Error Meas Ileak',  'code': 'E030'},
-             44: {'description': 'Error Read V',      'code': 'E031'},
-             45: {'description': 'Error Read I',      'code': 'E032'},
-             46: {'description': 'Table fail',        'code': 'W009'},
-             47: {'description': 'Fan Fail',          'code': 'W010'},
-             48: {'description': 'UTH',               'code': 'E033'},
-             49: {'description': 'Interlock fail',    'code': 'E034'},
-             50: {'description': 'Remote Off',        'code': 'E035'},
-             51: {'description': 'Vout Avg error',    'code': 'E036'},
-             52: {'description': 'Battery low',       'code': 'W012'},
-             53: {'description': 'Clk fail',          'code': 'W013'},
-             54: {'description': 'Input UC',          'code': 'E037'},
-             55: {'description': 'Zero Power',        'code': 'W014'},
-             56: {'description': 'Fan Stuck',         'code': 'E038'},
-             57: {'description': 'DC Switch Open',    'code': 'E039'},
-             58: {'description': 'Tras Switch Open',  'code': 'E040'},
-             59: {'description': 'AC Switch Open',    'code': 'E041'},
-             60: {'description': 'Bulk UV',           'code': 'E042'},
-             61: {'description': 'Autoexclusion',     'code': 'E043'},
-             62: {'description': 'Grid df/dt',        'code': 'W015'},
-             63: {'description': 'Den switch Open',   'code': 'W016'},
-             64: {'description': 'Jbox fail',         'code': 'W017'}
-             }
-
     def __init__(self, **inverter_dict):
         """Initialise an object of type AuroraDriver."""
 
@@ -551,7 +359,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         wait_before_retry = float(inverter_dict.get('wait_before_retry', DEFAULT_WAIT_BEFORE_RETRY))
         command_delay = float(inverter_dict.get('command_delay', DEFAULT_COMMAND_DELAY))
 
-        log.info("   port: '%s' baudrate: %d read_timeout: %.1f write_timeout: %.1fd",
+        log.info("   port: '%s' baudrate: %d read_timeout: %.1f write_timeout: %.1f",
                  port,
                  baudrate,
                  read_timeout,
@@ -594,8 +402,6 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                                        wait_before_retry=wait_before_retry,
                                        command_delay=command_delay,
                                        max_tries=max_command_tries)
-#        # is the inverter running ie global state '6' (Run)
-#        self.running = self.do_cmd('getState').global_state == 6
         # initialise last energy value
         self.last_energy = None
         # build a 'none' packet to use when the inverter is offline, first
@@ -832,10 +638,202 @@ class AuroraInverter(object):
 
     DEFAULT_PORT = '/dev/ttyUSB0'
     DEFAULT_ADDRESS = '2'
+    # transmission state code map
+    TRANSMISSION = {0: 'Everything is OK',
+                    51: 'Command is not implemented',
+                    52: 'Variable does not exist',
+                    53: 'Variable value is out of range',
+                    54: 'EEprom not accessible',
+                    55: 'Not Toggled Service Mode',
+                    56: 'Can not send the command to internal micro',
+                    57: 'Command not Executed',
+                    58: 'The variable is not available, retry'
+                    }
 
-    def __init__(self, port, baudrate=DEFAULT_BAUDRATE, address=DEFAULT_ADDRESS, read_timeout=DEFAULT_READ_TIMEOUT,
-                 write_timeout=DEFAULT_WRITE_TIMEOUT, wait_before_retry=DEFAULT_WAIT_BEFORE_RETRY,
-                 command_delay=0.05, max_tries=3):
+    # inverter system module state code maps
+
+    # global state
+    GLOBAL = {0: 'Sending Parameters',
+              1: 'Wait Sun/Grid',
+              2: 'Checking Grid',
+              3: 'Measuring Riso',
+              4: 'DcDc Start',
+              5: 'Inverter Start',
+              6: 'Run',
+              7: 'Recovery',
+              8: 'Pause',
+              9: 'Ground Fault',
+              10: 'OTH Fault',
+              11: 'Address Setting',
+              12: 'Self Test',
+              13: 'Self Test Fail',
+              14: 'Sensor Test + Meas.Riso',
+              15: 'Leak Fault',
+              16: 'Waiting for manual reset ',
+              17: 'Internal Error E026',
+              18: 'Internal Error E027',
+              19: 'Internal Error E028',
+              20: 'Internal Error E029',
+              21: 'Internal Error E030',
+              22: 'Sending Wind Table',
+              23: 'Failed Sending table',
+              24: 'UTH Fault',
+              25: 'Remote OFF',
+              26: 'Interlock Fail',
+              27: 'Executing Autotest',
+              30: 'Waiting Sun',
+              31: 'Temperature Fault',
+              32: 'Fan Stacked',
+              33: 'Int. Com. Fault',
+              34: 'Slave Insertion',
+              35: 'DC Switch Open',
+              36: 'TRAS Switch Open',
+              37: 'MASTER Exclusion',
+              38: 'Auto Exclusion ',
+              98: 'Erasing Internal EEprom',
+              99: 'Erasing External EEprom',
+              100: 'Counting EEprom',
+              101: 'Freeze'
+              }
+
+    # inverter state
+    INVERTER = {0: 'Stand By',
+                1: 'Checking Grid',
+                2: 'Run',
+                3: 'Bulk OV',
+                4: 'Out OC',
+                5: 'IGBT Sat',
+                6: 'Bulk UV',
+                7: 'Degauss Error',
+                8: 'No Parameters',
+                9: 'Bulk Low',
+                10: 'Grid OV',
+                11: 'Communication Error',
+                12: 'Degaussing',
+                13: 'Starting',
+                14: 'Bulk Cap Fail',
+                15: 'Leak Fail',
+                16: 'DcDc Fail',
+                17: 'Ileak Sensor Fail',
+                18: 'SelfTest: relay inverter',
+                19: 'SelfTest: wait for sensor test',
+                20: 'SelfTest: test relay DcDc + sensor',
+                21: 'SelfTest: relay inverter fail',
+                22: 'SelfTest timeout fail',
+                23: 'SelfTest: relay DcDc fail',
+                24: 'Self Test 1',
+                25: 'Waiting self test start',
+                26: 'Dc Injection',
+                27: 'Self Test 2',
+                28: 'Self Test 3',
+                29: 'Self Test 4',
+                30: 'Internal Error',
+                31: 'Internal Error',
+                40: 'Forbidden State',
+                41: 'Input UC',
+                42: 'Zero Power',
+                43: 'Grid Not Present',
+                44: 'Waiting Start',
+                45: 'MPPT',
+                46: 'Grid Fail',
+                47: 'Input OC'
+                }
+
+    # DC/DC channel states
+    DCDC = {0: 'DcDc OFF',
+            1: 'Ramp Start',
+            2: 'MPPT',
+            3: 'Not Used',
+            4: 'Input OC',
+            5: 'Input UV',
+            6: 'Input OV',
+            7: 'Input Low',
+            8: 'No Parameters',
+            9: 'Bulk OV',
+            10: 'Communication Error',
+            11: 'Ramp Fail',
+            12: 'Internal Error',
+            13: 'Input mode Error',
+            14: 'Ground Fault',
+            15: 'Inverter Fail',
+            16: 'DcDc IGBT Sat',
+            17: 'DcDc ILEAK Fail',
+            18: 'DcDc Grid Fail',
+            19: 'DcDc Comm Error'
+            }
+
+    # alarm states
+    #TODO. What is the appropriate code for 0? None or something else?
+    ALARM = {0:  {'description': 'No Alarm',          'code': None},
+             1:  {'description': 'Sun Low',           'code': 'W001'},
+             2:  {'description': 'Input OC',          'code': 'E001'},
+             3:  {'description': 'Input UV',          'code': 'W002'},
+             4:  {'description': 'Input OV',          'code': 'E002'},
+             5:  {'description': 'Sun Low',           'code': 'W001'},
+             6:  {'description': 'No Parameters',     'code': 'E003'},
+             7:  {'description': 'Bulk OV',           'code': 'E004'},
+             8:  {'description': 'Comm.Error',        'code': 'E005'},
+             9:  {'description': 'Output OC',         'code': 'E006'},
+             10: {'description': 'IGBT Sat',          'code': 'E007'},
+             11: {'description': 'Bulk UV',           'code': 'W011'},
+             12: {'description': 'Internal error',    'code': 'E009'},
+             13: {'description': 'Grid Fail',         'code': 'W003'},
+             14: {'description': 'Bulk Low',          'code': 'E010'},
+             15: {'description': 'Ramp Fail',         'code': 'E011'},
+             16: {'description': 'Dc/Dc Fail',        'code': 'E012'},
+             17: {'description': 'Wrong Mode',        'code': 'E013'},
+             18: {'description': 'Ground Fault',      'code': '---'},
+             19: {'description': 'Over Temp.',        'code': 'E014'},
+             20: {'description': 'Bulk Cap Fail',     'code': 'E015'},
+             21: {'description': 'Inverter Fail',     'code': 'E016'},
+             22: {'description': 'Start Timeout',     'code': 'E017'},
+             23: {'description': 'Ground Fault',      'code': 'E018'},
+             24: {'description': 'Degauss error',     'code': '---'},
+             25: {'description': 'Ileak sens.fail',   'code': 'E019'},
+             26: {'description': 'DcDc Fail',         'code': 'E012'},
+             27: {'description': 'Self Test Error 1', 'code': 'E020'},
+             28: {'description': 'Self Test Error 2', 'code': 'E021'},
+             29: {'description': 'Self Test Error 3', 'code': 'E019'},
+             30: {'description': 'Self Test Error 4', 'code': 'E022'},
+             31: {'description': 'DC inj error',      'code': 'E023'},
+             32: {'description': 'Grid OV',           'code': 'W004'},
+             33: {'description': 'Grid UV',           'code': 'W005'},
+             34: {'description': 'Grid OF',           'code': 'W006'},
+             35: {'description': 'Grid UF',           'code': 'W007'},
+             36: {'description': 'Z grid Hi',         'code': 'W008'},
+             37: {'description': 'Internal error',    'code': 'E024'},
+             38: {'description': 'Riso Low',          'code': 'E025'},
+             39: {'description': 'Vref Error',        'code': 'E026'},
+             40: {'description': 'Error Meas V',      'code': 'E027'},
+             41: {'description': 'Error Meas F',      'code': 'E028'},
+             42: {'description': 'Error Meas Z',      'code': 'E029'},
+             43: {'description': 'Error Meas Ileak',  'code': 'E030'},
+             44: {'description': 'Error Read V',      'code': 'E031'},
+             45: {'description': 'Error Read I',      'code': 'E032'},
+             46: {'description': 'Table fail',        'code': 'W009'},
+             47: {'description': 'Fan Fail',          'code': 'W010'},
+             48: {'description': 'UTH',               'code': 'E033'},
+             49: {'description': 'Interlock fail',    'code': 'E034'},
+             50: {'description': 'Remote Off',        'code': 'E035'},
+             51: {'description': 'Vout Avg error',    'code': 'E036'},
+             52: {'description': 'Battery low',       'code': 'W012'},
+             53: {'description': 'Clk fail',          'code': 'W013'},
+             54: {'description': 'Input UC',          'code': 'E037'},
+             55: {'description': 'Zero Power',        'code': 'W014'},
+             56: {'description': 'Fan Stuck',         'code': 'E038'},
+             57: {'description': 'DC Switch Open',    'code': 'E039'},
+             58: {'description': 'Tras Switch Open',  'code': 'E040'},
+             59: {'description': 'AC Switch Open',    'code': 'E041'},
+             60: {'description': 'Bulk UV',           'code': 'E042'},
+             61: {'description': 'Autoexclusion',     'code': 'E043'},
+             62: {'description': 'Grid df/dt',        'code': 'W015'},
+             63: {'description': 'Den switch Open',   'code': 'W016'},
+             64: {'description': 'Jbox fail',         'code': 'W017'}
+             }
+
+    def __init__(self, port, baudrate=DEFAULT_BAUDRATE, address=DEFAULT_ADDRESS,
+                 read_timeout=DEFAULT_READ_TIMEOUT, write_timeout=DEFAULT_WRITE_TIMEOUT,
+                 wait_before_retry=DEFAULT_WAIT_BEFORE_RETRY, command_delay=0.05, max_tries=3):
         """Initialise an AuroraInverter object."""
 
         self.port = port
@@ -907,9 +905,19 @@ class AuroraInverter(object):
             'partial_energy':             {'cmd': 'cumulated_energy', 'p1':  6},
             'last_alarms':                {'cmd': 'last_alarms'}
         }
-        self.global_state = None
+        # initialise transmission state and global state properties
         self.transmission_state = None
+        self.global_state = None
+        # open the port to the inverter
         self.open_port()
+        # Attempt to obtain the inverter state so that we can update the
+        # transmission state and global state properties. If the inverter is
+        # asleep (or otherwise cannot be contacted) a WeeWxIOError exception
+        # will be raised, meaning the transmission state and global state
+        # properties will not be updated. We can just swallow the exception,
+        # the driver will continue to poll the inverter or if being run
+        # directly or with weectl device, the relevant action will catch an
+        # exception later.
         try:
             _ = self.get_state()
         except weewx.WeeWxIOError:
@@ -1508,6 +1516,11 @@ class AuroraInverter(object):
         byte 4: most significant year digit
         byte 5: least significant year digit
 
+        where bytes 2 to 5 inclusive are ASCII character codes of the digit
+        concerned, eg if bytes 2 and 3 are hex 34 and 36 respectively
+        (ie decimal 52 and 54) bytes 2 and 3 are the ASCII
+        characters 4 and 6 respectively meaning the week is decimal 46.
+
         Input:
             v: bytearray containing the 6 byte response
 
@@ -1520,7 +1533,9 @@ class AuroraInverter(object):
             s = struct.Struct('>H')
             week = s.unpack(v[2:4])
             year = s.unpack(v[4:6])
-            return ResponseTuple(int(v[0]), int(v[1]), (week, year))
+            return ResponseTuple(int(v[0]),
+                                 int(v[1]),
+                                 (int(str(v[2:4].decode())), int(str(v[4:6].decode()))))
         except (IndexError, TypeError):
             return ResponseTuple(None, None, None)
 
@@ -1726,9 +1741,21 @@ class AuroraInverter(object):
 
     @property
     def firmware_release(self):
-        """The inverter firmware release."""
+        """The inverter firmware release.
 
-        return self.execute_cmd_with_crc('firmware_release').data
+        The firmware release provided by the inverter is a four character
+        string (eg, 'C016'); however, the firmware release is commonly
+        displayed as four characters separated by periods (eg, 'C.0.1.6').
+        Since the firmware release obtained by the driver is typically for
+        display purposes we will return the firmware release as a string with
+        each character separated by a period.
+        """
+
+        # obtain the firmware release as four character string
+        _fw = self.execute_cmd_with_crc('firmware_release').data
+        # return the firmware release as a string with each character separated
+        # by a period
+        return '.'.join([c for c in _fw])
 
 
 # ============================================================================
@@ -2085,119 +2112,159 @@ class DirectAurora(object):
     def status(self):
         """Display the inverter status."""
 
-        # wrap in a try..except in case there is an error
+        # first get an AuroraDriver object, wrap in a try .. except so we can
+        # catch any exceptions, particularly if the inverter is asleep
         try:
-            # get an AuroraDriver object
             driver = AuroraDriver(port=self.port)
-            # obtain the inverter state
-            response_rt = driver.do_cmd('getState')
-            # and print the state
-            print()
-            print(f"{driver.model} Status:")
-            if response_rt.transmission_state is not None:
-                print(f'{"Transmission state":>22}: {response_rt.transmission_state} '
-                      f'({AuroraDriver.TRANSMISSION[response_rt.transmission_state]})')
-            else:
-                print(f'{"Transmission state":>22}: None (---)')
-            if response_rt.global_state is not None:
-                print(f'{"Global state":>22}: {response_rt.global_state} '
-                      f'({AuroraDriver.GLOBAL[response_rt.global_state]})')
-            else:
-                print(f'{"Global state":>22}: None (---)')
-            if response_rt.data is not None and response_rt.data[0] is not None:
-                print(f'{"Inverter state":>22}: {response_rt.data[0]} '
-                      f'({AuroraDriver.INVERTER[response_rt.data[0]]})')
-            else:
-                print(f'{"Inverter state":>22}: None (---)')
-            if response_rt.data is not None and response_rt.data[1] is not None:
-                print(f'{"DcDc1 state":>22}: {response_rt.data[1]} '
-                      f'({AuroraDriver.DCDC[response_rt.data[1]]})')
-            else:
-                print(f'{"DcDc1 state":>22}: None (---)')
-            if response_rt.data is not None and response_rt.data[2] is not None:
-                print(f'{"DcDc2 state":>22}: {response_rt.data[2]} '
-                      f'({AuroraDriver.DCDC[response_rt.data[2]]})')
-            else:
-                print(f'{"DcDc2 state":>22}: None (---)')
-            if response_rt.data is not None and response_rt.data[3] is not None:
-                print(f'{"Alarm state":>22}: {response_rt.data[3]} '
-                      f'({AuroraDriver.ALARM[response_rt.data[3]]["description"]})'
-                      f'[{AuroraDriver.ALARM[response_rt.data[3]]["code"]}]')
-            else:
-                print(f'{"Alarm state":>22}: None (---)')
         except Exception as e:
+            # could not load the driver, inform the user and display any error
+            # message
             print()
-            print("Unable to connect to device: %s" % e)
+            print("Unable to load driver: %s" % e)
+        else:
+            # obtain the inverter state
+            try:
+                state_rt = driver.inverter.get_state()
+            except weewx.WeeWxIOError as e:
+                print()
+                print(f'Unable to connect to device: {e}')
+            except Exception as e:
+                print()
+                print(f'An unexpected error occurred: {e}')
+            else:
+                # now display the inverter status
+                print()
+                print(f"{driver.model} Status:")
+                if driver.inverter.transmission_state is not None:
+                    print(f'{"Transmission state":>22}: {driver.inverter.transmission_state} '
+                          f'({AuroraInverter.TRANSMISSION[driver.inverter.transmission_state]})')
+                else:
+                    print(f'{"Transmission state":>22}: None (---)')
+                if driver.inverter.global_state is not None:
+                    print(f'{"Global state":>22}: {driver.inverter.global_state} '
+                          f'({AuroraInverter.GLOBAL[driver.inverter.global_state]})')
+                else:
+                    print(f'{"Global state":>22}: None (---)')
+                if state_rt is not None and state_rt[0] is not None:
+                    print(f'{"Inverter state":>22}: {state_rt[0]} '
+                          f'({AuroraInverter.INVERTER[state_rt[0]]})')
+                else:
+                    print(f'{"Inverter state":>22}: None (---)')
+                if state_rt is not None and state_rt[1] is not None:
+                    print(f'{"DcDc1 state":>22}: {state_rt[1]} '
+                          f'({AuroraInverter.DCDC[state_rt[1]]})')
+                else:
+                    print(f'{"DcDc1 state":>22}: None (---)')
+                if state_rt is not None and state_rt[2] is not None:
+                    print(f'{"DcDc2 state":>22}: {state_rt[2]} '
+                          f'({AuroraInverter.DCDC[state_rt[2]]})')
+                else:
+                    print(f'{"DcDc2 state":>22}: None (---)')
+                if state_rt is not None and state_rt[3] is not None:
+                    print(f'{"Alarm state":>22}: {state_rt[3]} '
+                          f'({AuroraInverter.ALARM[state_rt[3]]["description"]})'
+                          f'[{AuroraInverter.ALARM[state_rt[3]]["code"]}]')
+                else:
+                    print(f'{"Alarm state":>22}: None (---)')
 
     def info(self):
-        
+        """Display inverter information.
+
+        Obtain an AuroraDriver object then display various fixed inverter
+        properties.
+        """
+
+        # first get an AuroraDriver object, wrap in a try .. except so we can
+        # catch any exceptions, particularly if the inverter is asleep
         try:
-            # get an AuroraDriver object
             driver = AuroraDriver(port=self.port)
-            # display inverter info
-            print()
-            print(f'{driver.model} Information:')
-            print(f'{"Part Number":>21}: {driver.part_number}')
-            print(f'{"Version":>21}: {driver.version}')
-            print(f'{"Serial Number":>21}: {driver.serial_number}')
-            print(f'{"Manufacture Date":>21}: {driver.manufacture_date}')
-            print(f'{"Firmware Release":>21}: {driver.firmware_rel}')
         except Exception as e:
+            # could not load the driver, inform the user and display any error
+            # message
             print()
-            print("Unable to connect to device: %s" % e)
+            print("Unable to load driver: %s" % e)
+        else:
+            # we have an AuroraDriver object now display the inverter info
+            print()
+            try:
+                # display inverter info
+                print(f'{driver.model} Information:')
+                print(f'{"Part Number":>21}: {driver.inverter.part_number}')
+                print(f'{"Version":>21}: {driver.inverter.version}')
+                print(f'{"Serial Number":>21}: {driver.inverter.serial_number}')
+                _man_date = driver.inverter.manufacture_date
+                print(f'{"Manufacture Date":>21}: week {_man_date[0]} year {_man_date[1]}')
+                print(f'{"Firmware Release":>21}: {driver.inverter.firmware_release}')
+            except weewx.WeeWxIOError as e:
+                print()
+                print(f'Unable to connect to device: {e}')
+            except Exception as e:
+                print()
+                print(f'An unexpected error occurred: {e}')
 
     def readings(self):
 
+        # first get an AuroraDriver object, wrap in a try .. except so we can
+        # catch any exceptions, particularly if the inverter is asleep
         try:
-            # get an AuroraDriver object
             driver = AuroraDriver(port=self.port)
-            print()
-            print(f"{driver.model} Current Readings:")
-            print("-----------------------------------------------")
-            print("Grid:")
-            print(f"{'Voltage':>29}: {driver.do_cmd('getGridV').data}V")
-            print(f"{'Current':>29}: {driver.do_cmd('getGridC').data}A")
-            print(f"{'Power':>29}: {driver.do_cmd('getGridP').data}W")
-            print(f"{'Frequency':>29}: {driver.do_cmd('getFrequency').data}Hz")
-            print(f"{'Average Voltage':>29}: {driver.do_cmd('getGridAvV').data}V")
-            print(f"{'Neutral Voltage':>29}: {driver.do_cmd('getGridNV').data}V")
-            print(f"{'Neutral Phase Voltage':>29}: {driver.do_cmd('getGridNPhV').data}V")
-            print("-----------------------------------------------")
-            print("String 1:")
-            print(f"{'Voltage':>29}: {driver.do_cmd('getStr1V').data}V")
-            print(f"{'Current':>29}: {driver.do_cmd('getStr1C').data}A")
-            print(f"{'Power':>29}: {driver.do_cmd('getStr1P').data}W")
-            print("-----------------------------------------------")
-            print("String 2:")
-            print(f"{'Voltage':>29}: {driver.do_cmd('getStr2V').data}V")
-            print(f"{'Current':>29}: {driver.do_cmd('getStr2C').data}A")
-            print(f"{'Power':>29}: {driver.do_cmd('getStr2P').data}W")
-            print("-----------------------------------------------")
-            print("Inverter:")
-            print(f"""{"Voltage (DC/DC Booster)":>29}: {driver.do_cmd("getGridDcV").data}V""")
-            print(f"""{"Frequency (DC/DC Booster)":>29}: {driver.do_cmd("getGridDcFreq").data}Hz""")
-            print(f"""{"Inverter Temp":>29}: {driver.do_cmd("getInverterT").data}C""")
-            print(f"""{"Booster Temp":>29}: {driver.do_cmd("getBoosterT").data}C""")
-            print(f"""{"Today's Peak Power":>29}: {driver.do_cmd("getDayPeakP").data}W""")
-            print(f"""{"Lifetime Peak Power":>29}: {driver.do_cmd("getPeakP").data}W""")
-            print(f"""{"Today's Energy":>29}: {driver.do_cmd("getDayEnergy").data}Wh""")
-            print(f"""{"This Weeks's Energy":>29}: {driver.do_cmd("getWeekEnergy").data}Wh""")
-            print(f"""{"This Month's Energy":>29}: {driver.do_cmd("getMonthEnergy").data}Wh""")
-            print(f"""{"This Year's Energy":>29}: {driver.do_cmd("getYearEnergy").data}Wh""")
-            print(f"""{"Partial Energy":>29}: {driver.do_cmd("getPartialEnergy").data}Wh""")
-            print(f"""{"Lifetime Energy":>29}: {driver.do_cmd("getTotalEnergy").data}Wh""")
-            print()
-            print(f"{'Bulk Voltage':>29}: {driver.do_cmd('getBulkV').data}V")
-            print(f"{'Bulk DC Voltage':>29}: {driver.do_cmd('getBulkDcV').data}V")
-            print(f"{'Bulk Mid Voltage':>29}: {driver.do_cmd('getBulkMidV').data}V")
-            print()
-            print(f"{'Insulation Resistance':>29}: {driver.do_cmd('getIsoR').data}MOhms")
-            print()
-            print(f"{'zLeakage Current(Inverter)zz':>29}: {driver.do_cmd('getLeakC').data}A")
-            print(f"{'Leakage Current(Booster)':>29}: {driver.do_cmd('getLeakDcC').data}A")
         except Exception as e:
+            # could not load the driver, inform the user and display any error
+            # message
             print()
-            print("Unable to connect to device: %s" % e)
+            print("Unable to load driver: %s" % e)
+        else:
+            print()
+            try:
+                print(f"{driver.model} Current Readings:")
+                print("-----------------------------------------------")
+                print("Grid:")
+                print(f"{'Voltage':>29}: {driver.inverter.get_field('grid_voltage')}V")
+                print(f"{'Current':>29}: {driver.inverter.get_field('grid_current')}A")
+                print(f"{'Power':>29}: {driver.inverter.get_field('grid_power')}W")
+                print(f"{'Frequency':>29}: {driver.inverter.get_field('frequency')}Hz")
+                print(f"{'Average Voltage':>29}: {driver.inverter.get_field('grid_average_voltage')}V")
+                print(f"{'Neutral Voltage':>29}: {driver.inverter.get_field('grid_voltage_neutral')}V")
+                print(f"{'Neutral Phase Voltage':>29}: {driver.inverter.get_field('grid_voltage_neutral_phase')}V")
+                print("-----------------------------------------------")
+                print("String 1:")
+                print(f"{'Voltage':>29}: {driver.inverter.get_field('string1_voltage')}V")
+                print(f"{'Current':>29}: {driver.inverter.get_field('string1_current')}A")
+                print(f"{'Power':>29}: {driver.inverter.get_field('string1_power')}W")
+                print("-----------------------------------------------")
+                print("String 2:")
+                print(f"{'Voltage':>29}: {driver.inverter.get_field('string2_voltage')}V")
+                print(f"{'Current':>29}: {driver.inverter.get_field('string2_current')}A")
+                print(f"{'Power':>29}: {driver.inverter.get_field('string2_power')}W")
+                print("-----------------------------------------------")
+                print("Inverter:")
+                print(f"""{"Voltage (DC/DC Booster)":>29}: {driver.inverter.get_field("grid_dc_voltage")}V""")
+                print(f"""{"Frequency (DC/DC Booster)":>29}: {driver.inverter.get_field("grid_dc_frequency")}Hz""")
+                print(f"""{"Inverter Temp":>29}: {driver.inverter.get_field("inverter_temp")}C""")
+                print(f"""{"Booster Temp":>29}: {driver.inverter.get_field("booster_temp")}C""")
+                print(f"""{"Today's Peak Power":>29}: {driver.inverter.get_field("day_peak_power")}W""")
+                print(f"""{"Lifetime Peak Power":>29}: {driver.inverter.get_field("peak_power")}W""")
+                print(f"""{"Today's Energy":>29}: {driver.inverter.get_field("day_energy")}Wh""")
+                print(f"""{"This Weeks's Energy":>29}: {driver.inverter.get_field("week_energy")}Wh""")
+                print(f"""{"This Month's Energy":>29}: {driver.inverter.get_field("month_energy")}Wh""")
+                print(f"""{"This Year's Energy":>29}: {driver.inverter.get_field("year_energy")}Wh""")
+                print(f"""{"Partial Energy":>29}: {driver.inverter.get_field("partial_energy")}Wh""")
+                print(f"""{"Lifetime Energy":>29}: {driver.inverter.get_field("total_energy")}Wh""")
+                print()
+                print(f"{'Bulk Voltage':>29}: {driver.inverter.get_field('bulk_voltage')}V")
+                print(f"{'Bulk DC Voltage':>29}: {driver.inverter.get_field('bulk_dc_voltage')}V")
+                print(f"{'Bulk Mid Voltage':>29}: {driver.inverter.get_field('bulk_mid_voltage')}V")
+                print()
+                print(f"{'Insulation Resistance':>29}: {driver.inverter.get_field('isolation_resistance')}MOhms")
+                print()
+                print(f"{'zLeakage Current(Inverter)zz':>29}: {driver.inverter.get_field('leak_current')}A")
+                print(f"{'Leakage Current(Booster)':>29}: {driver.inverter.get_field('leak_dc_current')}A")
+            except weewx.WeeWxIOError as e:
+                print()
+                print(f'Unable to connect to device: {e}')
+            except Exception as e:
+                print()
+                print(f'An unexpected error occurred: {e}')
 
     def get_time(self):
 
@@ -2205,8 +2272,8 @@ class DirectAurora(object):
             # get an AuroraDriver object
             driver = AuroraDriver(port=self.port)
         except Exception as e:
-            # something happened and we could not load the driver, inform the
-            # user and display any error message
+            # could not load the driver, inform the user and display any error
+            # message
             print()
             print("Unable to load driver: %s" % e)
             return
