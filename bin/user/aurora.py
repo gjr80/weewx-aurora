@@ -144,6 +144,7 @@ import time
 
 # WeeWX imports
 import weeutil
+import weewx.defaults
 import weewx.drivers
 import weewx.units
 from weeutil.weeutil import bcolors, timestamp_to_string
@@ -300,37 +301,50 @@ class DataFormatError(Exception):
 class AuroraDriver(weewx.drivers.AbstractDevice):
     """Class representing connection to Aurora inverter."""
 
+    # available DSP fields
+    DSP_FIELDS = ['grid_voltage', 'grid_current', 'grid_power', 'frequency',
+                  'bulk_voltage', 'leak_dc_current', 'leak_current',
+                  'string1_power', 'string2_power', 'inverter_temp',
+                  'booster_temp', 'string1_voltage', 'string1_current',
+                  'string2_voltage', 'string2_current', 'grid_dc_voltage',
+                  'grid_dc_frequency', 'isolation_resistance',
+                  'bulk_dc_voltage', 'grid_average_voltage',
+                  'bulk_mid_voltage', 'peak_power', 'day_peak_power',
+                  'grid_voltage_neutral', 'grid_voltage_neutral_phase',
+                  'time_date', 'day_energy', 'week_energy', 'month_energy',
+                  'year_energy', 'total_energy', 'partial_energy'
+                  ]
     # default sensor map, format:
     #   loop packet field: raw data field
-    DEFAULT_SENSOR_MAP = {'inverterDateTime': 'inverterDateTime',
-                          'string1Voltage': 'str1V',
-                          'string1Current': 'str1C',
-                          'string1Power': 'str1P',
-                          'string2Voltage': 'str2V',
-                          'string2Current': 'str2C',
-                          'string2Power': 'str2P',
-                          'gridVoltage': 'gridV',
-                          'gridCurrent': 'gridC',
-                          'gridPower': 'gridP',
+    DEFAULT_SENSOR_MAP = {'inverterDateTime': 'time_date',
+                          'string1Voltage': 'string1_voltage',
+                          'string1Current': 'string1_current',
+                          'string1Power': 'string1_power',
+                          'string2Voltage': 'string2_voltage',
+                          'string2Current': 'string2_current',
+                          'string2Power': 'string2_power',
+                          'gridVoltage': 'grid_voltage',
+                          'gridCurrent': 'grid_current',
+                          'gridPower': 'grid_power',
                           'gridFrequency': 'frequency',
-                          'inverterTemp': 'inverterT',
-                          'boosterTemp': 'boosterT',
-                          'bulkVoltage': 'bulkV',
-                          'isoResistance': 'isoR',
-                          'bulkmidVoltage': 'bulkMidV',
-                          'bulkdcVoltage': 'bulkDcV',
-                          'leakdcCurrent': 'leakDcC',
-                          'leakCurrent': 'leakC',
-                          'griddcVoltage': 'gridDcV',
-                          'gridavgVoltage': 'gridAvV',
-                          'gridnVoltage': 'gridNV',
-                          'griddcFrequency': 'gridDcFreq',
-                          'dayEnergy': 'dayEnergy',
-                          'weekEnergy': 'weekEnergy',
-                          'monthEnergy': 'monthEnergy',
-                          'yearEnergy': 'yearEnergy',
-                          'totalEnergy': 'totalEnergy',
-                          'partialEnergy': 'partialEnergy'
+                          'inverterTemp': 'inverter_temp',
+                          'boosterTemp': 'booster_temp',
+                          'bulkVoltage': 'bulk_voltage',
+                          'isoResistance': 'isolation_resistance',
+                          'bulkmidVoltage': 'bulk_mid_voltage',
+                          'bulkdcVoltage': 'bulk_dc_voltage',
+                          'leakdcCurrent': 'leak_dc_current',
+                          'leakCurrent': 'leak_current',
+                          'griddcVoltage': 'grid_dc_voltage',
+                          'gridavgVoltage': 'grid_average_voltage',
+                          'gridnVoltage': 'grid_voltage_neutral',
+                          'griddcFrequency': 'grid_dc_frequency',
+                          'dayEnergy': 'day_energy',
+                          'weekEnergy': 'week_energy',
+                          'monthEnergy': 'month_energy',
+                          'yearEnergy': 'year_energy',
+                          'totalEnergy': 'total_energy',
+                          'partialEnergy': 'partial_energy'
                           }
 
     def __init__(self, **inverter_dict):
@@ -441,7 +455,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
             # poll the inverter and obtain raw data
             # if the inverter is known to be running then just get the raw data
             if self.inverter.is_running:
-                _raw_packet = self.get_raw_packet()
+                _raw_packet = self.get_dsp_packet()
             else:
                 # The inverter isn't running, but the last check may have been
                 # poll_interval seconds ago, the inverter may have started
@@ -452,7 +466,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                 # cannot get a raw data packet use a 'None' packet
                 if self.inverter.is_running:
                     # the inverter is running so get a raw data packet
-                    _raw_packet = self.get_raw_packet()
+                    _raw_packet = self.get_dsp_packet()
                 else:
                     # the inverter is not running so use a 'None' packet
                     _raw_packet = self.none_packet
@@ -493,7 +507,26 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
             while time.time() < _ts + self.poll_interval:
                 time.sleep(0.2)
 
-    def get_raw_packet(self):
+    def get_dsp_packet(self):
+        """Get a loop packet from the inverter."""
+
+        # the inverter 'API' returns Metric values
+        _packet = {'usUnits': weewx.METRIC}
+        # iterate over the list of available DSP fields and attempt to obtain
+        # each field from the inverter
+        for dsp_field in self.DSP_FIELDS:
+            # get the field value, be prepared to catch a weewx.WeeWxIOError if
+            # the field cannot be obtained from the inverter
+            if self.inverter.is_running:
+                try:
+                    _packet[dsp_field] = self.inverter.get_field(dsp_field)
+                except weewx.WeeWXIOError:
+                    continue
+            else:
+                break
+        return _packet
+
+    def get_raw_packet1(self):
         """Get a loop packet from the inverter."""
 
         _packet = {}
@@ -524,13 +557,20 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
 
         # apply any special processing that may be required
         # isoR is reported in Mohms, we want ohms
-        if 'isoResistance' in raw_packet:
+        if 'isolation_resistance' in raw_packet:
             try:
-                raw_packet['isoResistance'] *= 1000000.0
+                raw_packet['isolation_resistance'] *= 1000000.0
             except TypeError:
                 # field is not numeric so leave it
                 pass
-        return raw_packet
+        # now map the inverter fields to WeeWX fields as per the sensor map
+        _packet = {}
+        # iterate over each field we need, that is each inverter field in the
+        # sensor map
+        for weewx_field, inverter_field in self.sensor_map.items():
+            if inverter_field in raw_packet:
+                _packet[weewx_field] = raw_packet[inverter_field]
+        return _packet
 
     def getTime(self):
         """Get inverter system time.
@@ -2007,6 +2047,42 @@ class DirectAurora(object):
     """
 
     DEFAULT_PORT = '/dev/ttyUSB0'
+    # inverter observation group dict, this maps all inverter 'fields' to a
+    # WeeWX unit group
+    inverter_obs_group_dict = {
+        'grid_voltage': 'group_volt',
+        'grid_current': 'group_amp',
+        'grid_power': 'group_power',
+        'frequency': 'group_frequency',
+        'bulk_voltage': 'group_volt',
+        'leak_dc_current': 'group_amp',
+        'leak_current': 'group_amp',
+        'string1_power': 'group_power',
+        'string2_power': 'group_power',
+        'inverter_temp': 'group_temperature',
+        'booster_temp': 'group_temperature',
+        'string1_voltage': 'group_volt',
+        'string1_current': 'group_amp',
+        'string2_voltage': 'group_volt',
+        'string2_current': 'group_amp',
+        'grid_dc_voltage': 'group_volt',
+        'grid_dc_frequency': 'group_frequency',
+        'isolation_resistance': 'group_resistance',
+        'bulk_dc_voltage': 'group_volt',
+        'grid_average_voltage': 'group_volt',
+        'bulk_mid_voltage': 'group_volt',
+        'peak_power': 'group_power',
+        'day_peak_power': 'group_power',
+        'grid_voltage_neutral': 'group_volt',
+        'grid_voltage_neutral_phase': 'group_volt',
+        'time_date': 'group_time',
+        'day_energy': 'group_energy',
+        'week_energy': 'group_energy',
+        'month_energy': 'group_energy',
+        'year_energy': 'group_energy',
+        'total_energy': 'group_energy',
+        'partial_energy': 'group_energy'
+    }
 
     def __init__(self, namespace, parser, **aurora_dict):
         """Initialise a DirectAurora object."""
@@ -2018,10 +2094,10 @@ class DirectAurora(object):
         self.aurora_dict = aurora_dict
         # obtain the port to be used, that is the minimum we need to
         # communicate with the inverter
-        self.port = self.port_from_config_opts()
+        self.config_from_command_line()
 
-    def port_from_config_opts(self):
-        """Obtain the port from inverter config or command line argument.
+    def config_from_command_line(self):
+        """Override the config dict with any command line options.
 
         Determine the port to use given an inverter config dict and command
         line arguments. The port is chosen as follows:
@@ -2032,23 +2108,28 @@ class DirectAurora(object):
           /dev/ttyUSB0
         """
 
-        # obtain a port number from the command line options
-        port = self.namespace.port if hasattr(self.namespace, 'port') and self.namespace.port else None
-        # if we didn't get a port check the inverter config dict
-        if port is None:
-            # obtain the port from the inverter config dict
-            port = self.aurora_dict.get('port')
-            if port is None:
-                port = DirectAurora.DEFAULT_PORT
-                if weewx.debug >= 1:
-                    print(f"Port set to default port '{port}'")
-            else:
-                if weewx.debug >= 1:
-                    print("Port obtained from station config")
-        else:
-            if weewx.debug >= 1:
-                print("Port obtained from command line options")
-        return port
+        if hasattr(self.namespace, 'port') and self.namespace.port:
+            self.aurora_dict['port'] = self.namespace.port
+        if hasattr(self.namespace, 'poll_interval') and self.namespace.poll_interval:
+            self.aurora_dict['poll_interval'] = int(self.namespace.poll_interval)
+        #
+        # # obtain a port number from the command line options
+        # port = self.namespace.port if hasattr(self.namespace, 'port') and self.namespace.port else None
+        # # if we didn't get a port check the inverter config dict
+        # if port is None:
+        #     # obtain the port from the inverter config dict
+        #     port = self.aurora_dict.get('port')
+        #     if port is None:
+        #         port = DirectAurora.DEFAULT_PORT
+        #         if weewx.debug >= 1:
+        #             print(f"Port set to default port '{port}'")
+        #     else:
+        #         if weewx.debug >= 1:
+        #             print("Port obtained from station config")
+        # else:
+        #     if weewx.debug >= 1:
+        #         print("Port obtained from command line options")
+        # return port
 
     def process_arguments(self):
         """Call the appropriate method based on the argparse arguments."""
@@ -2062,6 +2143,8 @@ class DirectAurora(object):
             self.info()
         elif hasattr(self.namespace, 'readings') and self.namespace.readings:
             self.readings()
+        elif hasattr(self.namespace, 'live_data') and self.namespace.live_data:
+            self.live_data()
         elif hasattr(self.namespace, 'get_time') and self.namespace.get_time:
             self.get_time()
         elif hasattr(self.namespace, 'set_time') and self.namespace.set_time:
@@ -2075,24 +2158,23 @@ class DirectAurora(object):
     def test_driver(self):
         """Exercise the aurora driver.
 
-        Exercises the aurora driver only. Loop packets, but no archive records,
-        are emitted to the console continuously until a keyboard interrupt is
-        received. A station config dict is coalesced from any relevant command
-        line parameters and the config file in use with command line
-        parameters overriding those in the config file.
+        Exercises the aurora driver. Generates and emits loop packets, but no
+        archive records, to the console continuously until a keyboard interrupt
+        is received. The station config dict is extracted from the WeeWX config
+        file, but some config options may be overriden by relevant command line
+        options.
         """
 
         log.info("Testing Aurora driver...")
         if hasattr(self.namespace, 'poll_interval') and self.namespace.poll_interval:
             self.aurora_dict['poll_interval'] = self.namespace.poll_interval
-        if hasattr(self.namespace, 'max_tries') and self.namespace.max_tries:
-            self.aurora_dict['max_tries'] = self.namespace.max_tries
         if hasattr(self.namespace, 'retry_wait') and self.namespace.retry_wait:
             self.aurora_dict['retry_wait'] = self.namespace.retry_wait
-        # first get an AuroraDriver object, wrap in a try .. except so we can
+        define_units()
+        # now get an AuroraDriver object, wrap in a try .. except so we can
         # catch any exceptions, particularly if the inverter is asleep
         try:
-            driver = AuroraDriver(port=self.port)
+            driver = AuroraDriver(**self.aurora_dict)
         except Exception as e:
             # could not load the driver, inform the user and display any error
             # message
@@ -2116,13 +2198,100 @@ class DirectAurora(object):
                 driver.closePort()
         log.info("Aurora driver testing complete")
 
+    def live_data(self):
+        """Display the inverter live data.
+
+        Obtain and display live sensor data from the selected device. Data is
+        presented as read from the device except for conversion to US customary
+        or Metric units. Unit labels are included.
+
+        The device IP address and port are derived (in order) as follows:
+        1. command line --ip-address and --port parameters
+        2. [GW1000] stanza in the specified config file
+        3. by discovery
+        """
+
+        define_units()
+        # now get an AuroraDriver object, wrap in a try .. except so we can
+        # catch any exceptions, particularly if the inverter is asleep
+        try:
+            driver = AuroraDriver(**self.aurora_dict)
+        except Exception as e:
+            # could not load the driver, inform the user and display any error
+            # message
+            print()
+            print("Unable to load driver: %s" % e)
+        else:
+            # get a packet containing the current DSP data
+            try:
+                _live_dsp_data_dict = driver.get_dsp_packet()
+            except weewx.WeeWxIOError as e:
+                print()
+                print(f'Unable to connect to device: {e}')
+            except Exception as e:
+                print()
+                print(f'An unexpected error occurred: {e}')
+            else:
+                # we have a data dict to work with, but we need to format the
+                # values and may need to convert units
+
+                # the live sensor data dict is a dict of sensor values and a
+                # timestamp only, whilst all sensor values are in MetricWX units
+                # there is no usUnits field present. We need usUnits to do our unit
+                # conversion so add in the usUnits field.
+                _live_dsp_data_dict['usUnits'] = weewx.METRICWX
+                # we will use the timestamp separately so pop it from the dict and
+                # save for later
+                time_date = _live_dsp_data_dict.pop('time_date')
+                # extend the WeeWX obs_group_dict with our gateway
+                # obs_group_dict, because weewx.units.obs_group_dict.extend is a
+                # ListOfDicts we need to use .prepend since the synthetic python2
+                # ListOfDicts does not support .update and we want to use the
+                # device entry should there already be an entry of the same name in
+                # weewx.units.obs_group_dict (eg 'rain')
+                weewx.units.obs_group_dict.prepend(DirectAurora.inverter_obs_group_dict)
+                # the live data is in MetricWX units, get a suitable converter
+                # based on our output units
+                if self.namespace.units.lower() == 'us':
+                    _unit_system = weewx.US
+                elif self.namespace.units.lower() == 'metricwx':
+                    _unit_system = weewx.METRICWX
+                else:
+                    _unit_system = weewx.METRIC
+                c = weewx.units.StdUnitConverters[_unit_system]
+                # Now get a formatter, the defaults should be fine
+                f = weewx.units.Formatter(unit_format_dict=weewx.defaults.defaults['Units']['StringFormats'],
+                                          unit_label_dict=weewx.defaults.defaults['Units']['Labels'])
+                # now build a new data dict with our converted and formatted data
+                result = {}
+                # iterate over the fields in our original data dict
+                for key, value in _live_dsp_data_dict.items():
+                    # we don't need usUnits in the result so skip it
+                    if key == 'usUnits':
+                        continue
+                    # get our key as a ValueTuple
+                    key_vt = weewx.units.as_value_tuple(_live_dsp_data_dict, key)
+                    # now get a ValueHelper which will do the conversion and
+                    # formatting
+                    key_vh = weewx.units.ValueHelper(key_vt, formatter=f, converter=c)
+                    # and add the converted and formatted value to our dict
+                    result[key] = key_vh.toString(None_string='None')
+                # finally, sort our dict by key and print the data
+                print()
+                print(f'Displaying data using the WeeWX '
+                      f'{weewx.units.unit_nicknames.get(_unit_system)} unit group.')
+                print()
+                print(f'{driver.model} live inverter data '
+                      f'({weeutil.weeutil.timestamp_to_string(time_date)}): '
+                      f'{weeutil.weeutil.to_sorted_string(result)}')
+
     def status(self):
         """Display the inverter status."""
 
         # first get an AuroraDriver object, wrap in a try .. except so we can
         # catch any exceptions, particularly if the inverter is asleep
         try:
-            driver = AuroraDriver(port=self.port)
+            driver = AuroraDriver(**self.aurora_dict)
         except Exception as e:
             # could not load the driver, inform the user and display any error
             # message
@@ -2184,7 +2353,7 @@ class DirectAurora(object):
         # first get an AuroraDriver object, wrap in a try .. except so we can
         # catch any exceptions, particularly if the inverter is asleep
         try:
-            driver = AuroraDriver(port=self.port)
+            driver = AuroraDriver(**self.aurora_dict)
         except Exception as e:
             # could not load the driver, inform the user and display any error
             # message
@@ -2211,10 +2380,11 @@ class DirectAurora(object):
 
     def readings(self):
 
+        define_units()
         # first get an AuroraDriver object, wrap in a try .. except so we can
         # catch any exceptions, particularly if the inverter is asleep
         try:
-            driver = AuroraDriver(port=self.port)
+            driver = AuroraDriver(**self.aurora_dict)
         except Exception as e:
             # could not load the driver, inform the user and display any error
             # message
@@ -2277,7 +2447,7 @@ class DirectAurora(object):
 
         try:
             # get an AuroraDriver object
-            driver = AuroraDriver(port=self.port)
+            driver = AuroraDriver(**self.aurora_dict)
         except Exception as e:
             # could not load the driver, inform the user and display any error
             # message
@@ -2305,7 +2475,7 @@ class DirectAurora(object):
 
         try:
             # get an AuroraDriver object
-            driver = AuroraDriver(port=self.port)
+            driver = AuroraDriver(**self.aurora_dict)
             # set the inverter time
             # obtain the inverter time
             inverter_ts = driver.getTime()
@@ -2396,6 +2566,10 @@ def main():
                         type=str,
                         metavar="PORT",
                         help='Use port PORT.')
+    parser.add_argument('--poll-interval',
+                        type=str,
+                        metavar="POLL_INTERVAL",
+                        help='Poll the inverter every POLL_INTERVAL seconds.')
     parser.add_argument('--gen-packets',
                         dest='gen',
                         action='store_true',
@@ -2408,6 +2582,10 @@ def main():
                         dest='info',
                         action='store_true',
                         help='Display inverter information.')
+    parser.add_argument('--live-data',
+                        dest='live_data',
+                        action='store_true',
+                        help='Display current inverter readings.')
     parser.add_argument('--readings',
                         dest='readings',
                         action='store_true',
@@ -2420,6 +2598,11 @@ def main():
                         dest='set_time',
                         action='store_true',
                         help='Set inverter date-time to the current system date-time.')
+    parser.add_argument('--units',
+                        dest='units',
+                        metavar='UNITS',
+                        default='metric',
+                        help='unit system to use when displaying live data')
     namespace = parser.parse_args()
 
     if len(sys.argv) == 1:
