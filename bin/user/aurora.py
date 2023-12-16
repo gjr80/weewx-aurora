@@ -86,7 +86,7 @@ to store and report inverter data.
 
 To use:
 
-1.  Copy this file to /home/weewx/bin/user.
+1.  Copy this file to ~/weewx-data/bin/user.
 
 2.  Add the following section to weewx.conf setting model, port and address
 options as required:
@@ -131,13 +131,7 @@ Standalone testing
 This driver can be run in standalone mode without the overheads of the WeeWX
 engine and services. The available options can be displayed using:
 
-    $ PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/aurora.py --help
-
-The options can be selected using:
-
-    $ PYTHONPATH=/home/weewx/bin python /home/weewx/bin/user/aurora.py --option
-
-    where option is one of the options listed by --help
+    $ PYTHONPATH=/home/user_account/weewx-data/bin python3 /home/user_account/weewx-data/bin/user/aurora.py --help
 """
 
 
@@ -276,7 +270,7 @@ def loader(config_dict, engine):
     # by the aurora driver
     define_units()
     # return an AuroraDriver object
-    return AuroraDriver(config_dict[DRIVER_NAME])
+    return AuroraDriver(**config_dict[DRIVER_NAME])
 
 
 def configurator_loader(config_dict):
@@ -400,7 +394,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         else:
             self.poll_interval = DEFAULT_POLL_INTERVAL
         address = int(inverter_dict.get('address', DEFAULT_ADDRESS))
-        #TODO. is max_loop_tries required ?
+        # TODO. is max_loop_tries required ?
         self.max_loop_tries = int(inverter_dict.get('max_loop_tries', 3))
         # get the sensor map
         self.sensor_map = inverter_dict.get('sensor_map',
@@ -807,7 +801,7 @@ class AuroraInverter(object):
             }
 
     # alarm states
-    #TODO. What is the appropriate code for 0? None or something else?
+    # TODO. What is the appropriate code for 0? None or something else?
     ALARM = {0:  {'description': 'No Alarm',          'code': None},
              1:  {'description': 'Sun Low',           'code': 'W001'},
              2:  {'description': 'Input OC',          'code': 'E001'},
@@ -953,6 +947,7 @@ class AuroraInverter(object):
         self.transmission_state = None
         self.global_state = None
         # open the port to the inverter
+        self.serial_port = None
         self.open_port()
         # Attempt to obtain the inverter state so that we can update the
         # transmission state and global state properties. If the inverter is
@@ -1573,14 +1568,11 @@ class AuroraInverter(object):
             v: bytearray containing the 6 byte response
 
         Returns:
-           A ResponseTuple where data attribute is a 2 way tuple of (week,
+           A ResponseTuple where the data attribute is a 2 way tuple of (week,
            year).
         """
 
         try:
-            s = struct.Struct('>H')
-            week = s.unpack(v[2:4])
-            year = s.unpack(v[4:6])
             return ResponseTuple(int(v[0]),
                                  int(v[1]),
                                  (int(str(v[2:4].decode())), int(str(v[4:6].decode()))))
@@ -2427,7 +2419,6 @@ class DirectAurora(object):
         try:
             # obtain the inverter time
             inverter_ts = driver.getTime()
-
         except Exception as e:
             # something happened and we could not get the time from the
             # inverter, inform the user and display any error message
