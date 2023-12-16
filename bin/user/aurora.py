@@ -17,12 +17,19 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see https://www.gnu.org/licenses/.
 
-Version: 0.7.0a1                                      Date: 23 November 2023
+Version: 0.7.0a2                                      Date: 16 December 2023
 
 Revision History
-    23 November 2023    v0.7.0
+    16 December 2023    v0.7.0
         - now WeeWX v5 compatible
         - python v3.6 and earlier no longer supported
+        - significant refactoring to move all intimate inverter knowledge out
+          of the driver class (class AuroraDriver) into class AuroraInverter
+        - added support for weectl device
+        - added class DirectAurora to better support running the driver
+          directly or via weectl device
+        - driver output when running directly or via weectl device now supports
+          unit conversion and formatting of displayed data
         - removed option to use inverter time as loop packet dateTime field
         - replaced the deprecated optparse module with argparse
         - add bolding to usage instructions when driver is run directly
@@ -132,8 +139,6 @@ The options can be selected using:
 
     where option is one of the options listed by --help
 """
-# TODO. Should TRANSMISSION, GLOBAL, INVERTER, DCDC and ALARMS reside in AuroraDriver or AuroraInverter?
-# TODO. Is get_dsp() required?
 
 
 # Python imports
@@ -964,7 +969,11 @@ class AuroraInverter(object):
 
     @property
     def is_running(self) -> bool:
-        """Is the inverter running."""
+        """Is the inverter running.
+
+        Updated whenever an inverter command is sent that elicits a response
+        that include inverter and global state.
+        """
 
         return self.global_state == 6
 
@@ -1677,7 +1686,7 @@ class AuroraInverter(object):
 
     @staticmethod
     def _dec_alarms(v):
-        """Decode a response contain last 4 alarms and inverter state.
+        """Decode a response containing the last 4 alarms and inverter state.
 
         Decode a 6 byte response in the following format:
 
@@ -1705,7 +1714,8 @@ class AuroraInverter(object):
     def get_state(self):
         """Get the inverter state.
 
-        Indirectly updates the global_state and transmission_state properties.
+        Also indirectly updates the global_state and transmission_state
+        properties.
         """
 
         return self.execute_cmd_with_crc("state_request").data
@@ -1762,19 +1772,19 @@ class AuroraInverter(object):
 
     @property
     def version(self):
-        """The inverter version."""
+        """The inverter hardware version."""
 
         return self.execute_cmd_with_crc('version').data
 
     @property
     def serial_number(self):
-        """The inverter firmware release."""
+        """The inverter serial number."""
 
         return self.execute_cmd_with_crc('serial_number').data
 
     @property
     def manufacture_date(self):
-        """The inverter firmware release."""
+        """The inverter manufacture date."""
 
         return self.execute_cmd_with_crc('manufacture_date').data
 
@@ -1906,7 +1916,10 @@ class AuroraConfigurator(weewx.drivers.AbstractConfigurator):
         # now we can set up the user customized logging
         weeutil.logger.setup('weewx', config_dict)
 
-        # get anAurora driver object
+        # define custom unit settings
+        define_units()
+
+        # get an Aurora driver object
         aurora = DirectAurora(options, parser, **stn_dict)
         aurora.process_arguments()
 
@@ -1977,7 +1990,11 @@ def format_byte_to_hex(byte_seq):
         A string of space separated hex digit pairs representing the input byte
         sequence.
     """
+
+    # obtain a bytearray of the byte sequence
     _b_array = bytearray(byte_seq)
+    # use a list comprehension to obtain a space delimited string of our byte
+    # sequence formatted as hex characters
     return ' '.join(['%02X' % b for b in _b_array])
 
 
@@ -1985,35 +2002,37 @@ def format_byte_to_hex(byte_seq):
 #                            class ResponseTuple
 # ============================================================================
 
-# An inverter response consists of 8 bytes as follows:
-#
-#   byte 0: transmission state
-#   byte 1: global state
-#   byte 2: data
-#   byte 3: data
-#   byte 4: data
-#   byte 5: data
-#   byte 6: CRC low byte
-#   byte 7: CRC high byte
-#
-# The CRC bytes are stripped away by the Aurora class when validating the
-# inverter response. The four data bytes may represent ASCII characters, a
-# 4 byte float or some other coded value. An inverter response can be
-# represented as a 3-way tuple called a response tuple:
-#
-# Item  Attribute       Meaning
-# 0     transmission    The transmission state code (an integer)
-# 1     global          The global state code (an integer)
-# 2     data            The four bytes in decoded form (eg 4 character ASCII
-#                       string, ANSI float)
-#
-# Some inverter responses do not include the transmission state and global
-# state, in these cases those response tuple attributes are set to None.
-#
-# It is also valid to have a data attribute of None. In these cases the data
-# could not be decoded and the driver will handle this appropriately.
-
 class ResponseTuple(tuple):
+    """Class to represent a raw inverter command response.
+
+    An inverter response consists of 8 bytes as follows:
+
+        byte 0: transmission state
+        byte 1: global state
+        byte 2: data
+        byte 3: data
+        byte 4: data
+        byte 5: data
+        byte 6: CRC low byte
+        byte 7: CRC high byte
+
+    The CRC bytes are stripped away by the Aurora class when validating the
+    inverter response. The four data bytes may represent ASCII characters, a
+    4 byte float or some other coded value. An inverter response can be
+    represented as a 3-way tuple called a response tuple:
+
+        Item  Attribute     Meaning
+        0     transmission  The transmission state code (an integer)
+        1     global        The global state code (an integer)
+        2     data          The four bytes in decoded form (eg 4 character
+                            ASCII string, ANSI float)
+
+    Some inverter responses do not include the transmission state and global
+    state, in these cases those response tuple attributes are set to None.
+
+    It is also valid to have a data attribute of None. In these cases the data
+    could not be decoded and the driver will handle this appropriately.
+    """
 
     def __new__(cls, *args):
         return tuple.__new__(cls, args)
@@ -2030,6 +2049,10 @@ class ResponseTuple(tuple):
     def data(self):
         return self[2]
 
+
+# ============================================================================
+#                             class DirectAurora
+# ============================================================================
 
 class DirectAurora(object):
     """Class to interact with an Aurora inverter driver when run directly.
@@ -2091,8 +2114,7 @@ class DirectAurora(object):
         self.parser = parser
         # save our config dict
         self.aurora_dict = aurora_dict
-        # obtain the port to be used, that is the minimum we need to
-        # communicate with the inverter
+        # obtain the command line options that override our config dict options
         self.config_from_command_line()
 
     def config_from_command_line(self):
@@ -2124,16 +2146,22 @@ class DirectAurora(object):
         # run the driver
         if hasattr(self.namespace, 'gen') and self.namespace.gen:
             self.test_driver()
+        # display the inverter status
         elif hasattr(self.namespace, 'status') and self.namespace.status:
             self.status()
+        # display inverter info
         elif hasattr(self.namespace, 'info') and self.namespace.info:
             self.info()
+        # display current inverter data
         elif hasattr(self.namespace, 'live_data') and self.namespace.live_data:
             self.live_data()
+        # display the inverger time
         elif hasattr(self.namespace, 'get_time') and self.namespace.get_time:
             self.get_time()
+        # set the inverter time
         elif hasattr(self.namespace, 'set_time') and self.namespace.set_time:
             self.set_time()
+        # no valid option selected, display the help text
         else:
             print()
             print("No option selected, nothing done")
@@ -2146,13 +2174,12 @@ class DirectAurora(object):
         Exercises the Aurora driver. Continuously generates, emits and prints
         loop packets (only) a keyboard interrupt occurs.
 
-        The station config dict is extracted from the WeeWX config file, but
-        some config options may be overriden by relevant command line options.
+        The station config dict is used with some config options may be
+        overriden by relevant command line options.
         """
 
+        # log that this is a test
         log.info("Testing Aurora driver...")
-        # set up our units and formatting
-        define_units()
         # now get an AuroraDriver object, wrap in a try .. except to catch
         # any exceptions, particularly if the inverter is asleep
         try:
@@ -2181,6 +2208,7 @@ class DirectAurora(object):
             except KeyboardInterrupt:
                 # we have a keyboard interrupt so shut down
                 driver.closePort()
+        # log completion of the test
         log.info("Aurora driver testing complete")
 
     def live_data(self):
@@ -2190,8 +2218,6 @@ class DirectAurora(object):
         converted and formatted as necessary. Unit labels are included.
         """
 
-        # set up our units and formatting
-        define_units()
         # get an AuroraDriver object, wrap in a try .. except to catch any
         # exceptions, particularly if the inverter is asleep
         try:
@@ -2296,8 +2322,8 @@ class DirectAurora(object):
     def status(self):
         """Display the inverter status."""
 
-        # first get an AuroraDriver object, wrap in a try .. except so we can
-        # catch any exceptions, particularly if the inverter is asleep
+        # get an AuroraDriver object, wrap in a try .. except to catch any
+        # exceptions, particularly if the inverter is asleep
         try:
             driver = AuroraDriver(**self.aurora_dict)
         except Exception as e:
@@ -2358,8 +2384,8 @@ class DirectAurora(object):
         properties.
         """
 
-        # first get an AuroraDriver object, wrap in a try .. except so we can
-        # catch any exceptions, particularly if the inverter is asleep
+        # get an AuroraDriver object, wrap in a try .. except to catch any
+        # exceptions, particularly if the inverter is asleep
         try:
             driver = AuroraDriver(**self.aurora_dict)
         except Exception as e:
@@ -2388,8 +2414,9 @@ class DirectAurora(object):
 
     def get_time(self):
 
+        # get an AuroraDriver object, wrap in a try .. except to catch any
+        # exceptions, particularly if the inverter is asleep
         try:
-            # get an AuroraDriver object
             driver = AuroraDriver(**self.aurora_dict)
         except Exception as e:
             # could not load the driver, inform the user and display any error
@@ -2400,6 +2427,7 @@ class DirectAurora(object):
         try:
             # obtain the inverter time
             inverter_ts = driver.getTime()
+
         except Exception as e:
             # something happened and we could not get the time from the
             # inverter, inform the user and display any error message
@@ -2416,12 +2444,25 @@ class DirectAurora(object):
 
     def set_time(self):
 
+        # get an AuroraDriver object, wrap in a try .. except to catch any
+        # exceptions, particularly if the inverter is asleep
         try:
-            # get an AuroraDriver object
             driver = AuroraDriver(**self.aurora_dict)
-            # set the inverter time
+        except Exception as e:
+            # could not load the driver, inform the user and display any error
+            # message
+            print()
+            print("Unable to load driver: %s" % e)
+            return
+        try:
             # obtain the inverter time
             inverter_ts = driver.getTime()
+        except Exception as e:
+            # something happened and we could not get the time from the
+            # inverter, inform the user and display any error message
+            print()
+            print("Unable to obtain device time: %s" % e)
+        else:
             # calculate the difference to system time
             _error = inverter_ts - time.time()
             # display the results
@@ -2438,9 +2479,6 @@ class DirectAurora(object):
             print()
             print(f"Updated inverter date-time is {timestamp_to_string(inverter_ts)}")
             print(f"    Clock error is {_error:.3f} seconds (positive is fast)")
-        except Exception as e:
-            print()
-            print("Unable to connect to device: %s" % e)
 
 
 # ============================================================================
@@ -2474,7 +2512,6 @@ def main():
     # python imports
     import argparse
     import sys
-    import time
 
     # WeeWX imports
     import weecfg
@@ -2567,7 +2604,7 @@ def main():
     config_path, config_dict = weecfg.read_config(namespace.config)
     print(f"Using configuration file '{config_path}'")
 
-    # define custom units settings
+    # define custom unit settings
     define_units()
 
     # now get a config dict for the inverter
@@ -2583,5 +2620,5 @@ def main():
 
 
 if __name__ == "__main__":
-    # start up the program
+    # start the program
     main()
