@@ -1,3 +1,16 @@
+v0.7.0
+*   now WeeWX v5 compatible
+*   python v3.6 and earlier no longer supported
+*   significant refactoring to move all intimate inverter knowledge out of the
+    driver class (class AuroraDriver) into class AuroraInverter
+*   added support for weectl device
+*   added class DirectAurora to better support running the driver directly or
+    via weectl device
+*   driver output when running directly or via weectl device now supports unit
+    conversion and formatting of displayed data
+*   removed option to use inverter time as loop packet dateTime field
+*   replaced the deprecated optparse module with argparse
+*   add bolding to usage instructions when driver is run directly
 v0.6.1
 *   fix issue with structure of inverter commands with a payload
 v0.6.0
