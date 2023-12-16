@@ -548,7 +548,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         """Create a limited WeeWX loop packet from a raw loop data.
 
         Input:
-            raw_packet: A dict holding unmapped raw data retrieved from the
+            inverter_packet: A dict holding unmapped raw data retrieved from the
                         inverter.
 
         Returns:
@@ -2099,37 +2099,25 @@ class DirectAurora(object):
     def config_from_command_line(self):
         """Override the config dict with any command line options.
 
-        Determine the port to use given an inverter config dict and command
-        line arguments. The port is chosen as follows:
-        - if specified use the port from the command line
-        - if a port was not specified on the command line obtain the port from
-          the inverter config dict
-        - if the inverter config dict does not specify a port use the default
-          /dev/ttyUSB0
+        Following config options are used/overridden as indicated:
+        port:
+            - if specified use the port from the command line
+            - if a port was not specified on the command line obtain the port
+              from the inverter config dict
+            - if the inverter config dict does not specify a port use the
+              default /dev/ttyUSB0
+        poll_interval:
+            - if specified use the poll_interval from the command line
+            - if poll_interval was not specified on the command line obtain
+              poll_interval from the inverter config dict
+            - if the inverter config dict does not specify a poll_interval
+              the driver will use DEFAULT_POLL_INTERVAL
         """
 
         if hasattr(self.namespace, 'port') and self.namespace.port:
             self.aurora_dict['port'] = self.namespace.port
         if hasattr(self.namespace, 'poll_interval') and self.namespace.poll_interval:
             self.aurora_dict['poll_interval'] = int(self.namespace.poll_interval)
-        #
-        # # obtain a port number from the command line options
-        # port = self.namespace.port if hasattr(self.namespace, 'port') and self.namespace.port else None
-        # # if we didn't get a port check the inverter config dict
-        # if port is None:
-        #     # obtain the port from the inverter config dict
-        #     port = self.aurora_dict.get('port')
-        #     if port is None:
-        #         port = DirectAurora.DEFAULT_PORT
-        #         if weewx.debug >= 1:
-        #             print(f"Port set to default port '{port}'")
-        #     else:
-        #         if weewx.debug >= 1:
-        #             print("Port obtained from station config")
-        # else:
-        #     if weewx.debug >= 1:
-        #         print("Port obtained from command line options")
-        # return port
 
     def process_arguments(self):
         """Call the appropriate method based on the argparse arguments."""
@@ -2141,8 +2129,6 @@ class DirectAurora(object):
             self.status()
         elif hasattr(self.namespace, 'info') and self.namespace.info:
             self.info()
-        elif hasattr(self.namespace, 'readings') and self.namespace.readings:
-            self.readings()
         elif hasattr(self.namespace, 'live_data') and self.namespace.live_data:
             self.live_data()
         elif hasattr(self.namespace, 'get_time') and self.namespace.get_time:
@@ -2158,21 +2144,18 @@ class DirectAurora(object):
     def test_driver(self):
         """Exercise the aurora driver.
 
-        Exercises the aurora driver. Generates and emits loop packets, but no
-        archive records, to the console continuously until a keyboard interrupt
-        is received. The station config dict is extracted from the WeeWX config
-        file, but some config options may be overriden by relevant command line
-        options.
+        Exercises the Aurora driver. Continuously generates, emits and prints
+        loop packets (only) a keyboard interrupt occurs.
+
+        The station config dict is extracted from the WeeWX config file, but
+        some config options may be overriden by relevant command line options.
         """
 
         log.info("Testing Aurora driver...")
-        if hasattr(self.namespace, 'poll_interval') and self.namespace.poll_interval:
-            self.aurora_dict['poll_interval'] = self.namespace.poll_interval
-        if hasattr(self.namespace, 'retry_wait') and self.namespace.retry_wait:
-            self.aurora_dict['retry_wait'] = self.namespace.retry_wait
+        # set up our units and formatting
         define_units()
-        # now get an AuroraDriver object, wrap in a try .. except so we can
-        # catch any exceptions, particularly if the inverter is asleep
+        # now get an AuroraDriver object, wrap in a try .. except to catch
+        # any exceptions, particularly if the inverter is asleep
         try:
             driver = AuroraDriver(**self.aurora_dict)
         except Exception as e:
@@ -2181,16 +2164,19 @@ class DirectAurora(object):
             print()
             print("Unable to load driver: %s" % e)
         else:
-            # identify the device being used
             print()
             try:
+                # identify the device being used
                 print(f"Interrogating {driver.model} at {driver.inverter.port}")
                 print()
-                # continuously get loop packets and print them to screen
+                # loop forever continuously generating loop packets and
+                # printing them to console, only stop if we see an exception
+                # or a keyboard interrupt
                 for pkt in driver.genLoopPackets():
                     print(f"{weeutil.weeutil.timestamp_to_string(pkt['dateTime'])}: "
                           f"{weeutil.weeutil.to_sorted_string(pkt)})")
             except Exception as e:
+                # some exception occurred, this will cause us to abort
                 print()
                 print("Unable to connect to device: %s" % e)
             except KeyboardInterrupt:
@@ -2211,9 +2197,10 @@ class DirectAurora(object):
         3. by discovery
         """
 
+        # set up our units and formatting
         define_units()
-        # now get an AuroraDriver object, wrap in a try .. except so we can
-        # catch any exceptions, particularly if the inverter is asleep
+        # now get an AuroraDriver object, wrap in a try .. except to catch
+        # any exceptions, particularly if the inverter is asleep
         try:
             driver = AuroraDriver(**self.aurora_dict)
         except Exception as e:
@@ -2276,14 +2263,56 @@ class DirectAurora(object):
                     key_vh = weewx.units.ValueHelper(key_vt, formatter=f, converter=c)
                     # and add the converted and formatted value to our dict
                     result[key] = key_vh.toString(None_string='None')
-                # finally, sort our dict by key and print the data
+
                 print()
-                print(f'Displaying data using the WeeWX '
-                      f'{weewx.units.unit_nicknames.get(_unit_system)} unit group.')
-                print()
-                print(f'{driver.model} live inverter data '
-                      f'({weeutil.weeutil.timestamp_to_string(time_date)}): '
-                      f'{weeutil.weeutil.to_sorted_string(result)}')
+                try:
+                    print(f'Displaying data using the WeeWX '
+                          f'{weewx.units.unit_nicknames.get(_unit_system)} unit group.')
+                    print(f"{driver.model} Live Data:")
+                    print("-----------------------------------------------")
+                    print("Grid:")
+                    print(f"{'Voltage':>29}: {result.get('grid_voltage')}V")
+                    print(f"{'Current':>29}: {result.get('grid_current')}A")
+                    print(f"{'Power':>29}: {result.get('grid_power')}W")
+                    print(f"{'Frequency':>29}: {result.get('frequency')}Hz")
+                    print(f"{'Average Voltage':>29}: {result.get('grid_average_voltage')}V")
+                    print(f"{'Neutral Voltage':>29}: {result.get('grid_voltage_neutral')}V")
+                    print(f"{'Neutral Phase Voltage':>29}: {result.get('grid_voltage_neutral_phase')}V")
+                    print("-----------------------------------------------")
+                    print("String 1:")
+                    print(f"{'Voltage':>29}: {result.get('string1_voltage')}V")
+                    print(f"{'Current':>29}: {result.get('string1_current')}A")
+                    print(f"{'Power':>29}: {result.get('string1_power')}W")
+                    print("-----------------------------------------------")
+                    print("String 2:")
+                    print(f"{'Voltage':>29}: {result.get('string2_voltage')}V")
+                    print(f"{'Current':>29}: {result.get('string2_current')}A")
+                    print(f"{'Power':>29}: {result.get('string2_power')}W")
+                    print("-----------------------------------------------")
+                    print("Inverter:")
+                    print(f"""{"Voltage (DC/DC Booster)":>29}: {result.get("grid_dc_voltage")}V""")
+                    print(f"""{"Frequency (DC/DC Booster)":>29}: {result.get("grid_dc_frequency")}Hz""")
+                    print(f"""{"Inverter Temp":>29}: {result.get("inverter_temp")}C""")
+                    print(f"""{"Booster Temp":>29}: {result.get("booster_temp")}C""")
+                    print(f"""{"Today's Peak Power":>29}: {result.get("day_peak_power")}W""")
+                    print(f"""{"Lifetime Peak Power":>29}: {result.get("peak_power")}W""")
+                    print(f"""{"Today's Energy":>29}: {result.get("day_energy")}Wh""")
+                    print(f"""{"This Weeks's Energy":>29}: {result.get("week_energy")}Wh""")
+                    print(f"""{"This Month's Energy":>29}: {result.get("month_energy")}Wh""")
+                    print(f"""{"This Year's Energy":>29}: {result.get("year_energy")}Wh""")
+                    print(f"""{"Partial Energy":>29}: {result.get("partial_energy")}Wh""")
+                    print(f"""{"Lifetime Energy":>29}: {result.get("total_energy")}Wh""")
+                    print()
+                    print(f"{'Bulk Voltage':>29}: {result.get('bulk_voltage')}V")
+                    print(f"{'Bulk DC Voltage':>29}: {result.get('bulk_dc_voltage')}V")
+                    print(f"{'Bulk Mid Voltage':>29}: {result.get('bulk_mid_voltage')}V")
+                    print()
+                    print(f"{'Insulation Resistance':>29}: {result.get('isolation_resistance')}MOhms")
+                    print()
+                    print(f"{'zLeakage Current(Inverter)zz':>29}: {result.get('leak_current')}A")
+                    print(f"{'Leakage Current(Booster)':>29}: {result.get('leak_dc_current')}A")
+                except:
+                    raise
 
     def status(self):
         """Display the inverter status."""
@@ -2541,13 +2570,21 @@ def main():
 
     usage = f"""{bcolors.BOLD}%(prog)s --help
                  --version 
-                 --gen-packets [--config=FILENAME]
-                 --status [--config=FILENAME]
-                 --info [--config=FILENAME]
-                 --readings [--config=FILENAME]
-                 --time [--config=FILENAME]
-                 --set-time [--config=FILENAME]
-                 --port{bcolors.ENDC}
+                 --gen-packets
+                    [CONFIG_FILE|--config=CONFIG_FILE]
+                    [--port=PORT] [poll_interval=POLL_INTERVAL]
+                    [--units=UNIT_SYSTEM]
+                 --live-data
+                    [CONFIG_FILE|--config=CONFIG_FILE]
+                    [--port=PORT] [--units=UNIT_SYSTEM]
+                 --status 
+                    [CONFIG_FILE|--config=CONFIG_FILE]
+                 --info
+                    [CONFIG_FILE|--config=CONFIG_FILE]
+                 --time
+                    [CONFIG_FILE|--config=CONFIG_FILE]
+                 --set-time
+                    [CONFIG_FILE|--config=CONFIG_FILE]
     """
     description = """Interact with a Power One Aurora inverter."""
 
@@ -2557,19 +2594,11 @@ def main():
 
     parser.add_argument('--config',
                         type=str,
-                        metavar="FILENAME",
-                        help="Use configuration file FILENAME.")
+                        metavar="CONFIG_FILE",
+                        help="Use configuration file CONFIG_FILE.")
     parser.add_argument('--version',
                         action='store_true',
                         help='Display driver version.')
-    parser.add_argument('--port',
-                        type=str,
-                        metavar="PORT",
-                        help='Use port PORT.')
-    parser.add_argument('--poll-interval',
-                        type=str,
-                        metavar="POLL_INTERVAL",
-                        help='Poll the inverter every POLL_INTERVAL seconds.')
     parser.add_argument('--gen-packets',
                         dest='gen',
                         action='store_true',
@@ -2586,11 +2615,7 @@ def main():
                         dest='live_data',
                         action='store_true',
                         help='Display current inverter readings.')
-    parser.add_argument('--readings',
-                        dest='readings',
-                        action='store_true',
-                        help='Display current inverter readings.')
-    parser.add_argument('--time',
+    parser.add_argument('--get-time',
                         dest='get_time',
                         action='store_true',
                         help='Display current inverter date-time.')
@@ -2598,9 +2623,17 @@ def main():
                         dest='set_time',
                         action='store_true',
                         help='Set inverter date-time to the current system date-time.')
+    parser.add_argument('--port',
+                        type=str,
+                        metavar="PORT",
+                        help='Use port PORT.')
+    parser.add_argument('--poll-interval',
+                        type=str,
+                        metavar="POLL_INTERVAL",
+                        help='Poll the inverter every POLL_INTERVAL seconds.')
     parser.add_argument('--units',
                         dest='units',
-                        metavar='UNITS',
+                        metavar='UNIT_SYSTEM',
                         default='metric',
                         help='unit system to use when displaying live data')
     namespace = parser.parse_args()
