@@ -13,6 +13,9 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 Version: 0.7.0                                      Date: 16 December 2023
 
 Revision History
+    16 December 2023    v0.7.0
+        - now requires WeeWX v5.0.0 or later
+        - Python v3.6 and earlier no longer supported
     12 March 2020       v0.6.1
         - bumped version number only
     9 March 2020        v0.6.0
