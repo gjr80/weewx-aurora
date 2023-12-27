@@ -44,7 +44,7 @@ AURORA_VERSION = "0.7.0a2"
 
 aurora_config_str = """
 [Aurora]
-    # This section is for the Ecowitt Gateway driver.
+    # This section is for the Aurora inverter driver.
 
     # inverter model number
     model = replace_me
