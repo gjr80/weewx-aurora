@@ -422,7 +422,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         self.none_packet = {}
         # now iterate over the fields we expect entering their 'none packet'
         # values in the dict
-        for field in self.sensor_map.keys():
+        for field in self.sensor_map.values():
             self.none_packet[field] = None
 
     def openPort(self):
@@ -460,7 +460,10 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                 # up to poll_interval seconds ago and the inverter may have
                 # since started running. Get the inverter state, this will
                 # force an update of the inverter is_running property.
-                _state = self.inverter.get_state()
+                try:
+                    _state = self.inverter.get_state()
+                except weewx.WeeWxIOError:
+                    pass
                 # now try to get a data packet from the inverter, if we cannot
                 # get a data packet use a 'None' packet
                 if self.inverter.is_running:
@@ -472,10 +475,15 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
 
             # log the inverter data
             if weewx.debug >= 2:
+                # TODO. Sort fields ?
                 log.debug("genLoopPackets: received inverter data packet: %s", _inverter_packet)
             # create a limited loop packet by mapping the inverter data as per
             # the sensor map
             packet = self.map_inverter_packet(_inverter_packet)
+            # log the inverter data
+            if weewx.debug >= 2:
+                # TODO. Sort fields ?
+                log.debug("genLoopPackets: mapped inverter data packet: %s", packet)
             # now add in/set any fields that require special consideration
             if packet:
                 # dateTime, use our timestamp from earlier
@@ -497,6 +505,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                     self.last_energy = None
                 # log the loop packet
                 if weewx.debug >= 2:
+                    # TODO. Sort fields ?
                     log.debug("genLoopPackets: generated loop packet: %s", packet)
                 # yield the packet
                 yield packet
@@ -520,7 +529,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
             if self.inverter.is_running:
                 try:
                     _packet[dsp_field] = self.inverter.get_field(dsp_field)
-                except weewx.WeeWXIOError:
+                except weewx.WeeWxIOError:
                     continue
             else:
                 break
@@ -1079,7 +1088,7 @@ class AuroraInverter(object):
         """Obtain the value of a given field using the API.
 
         Call execute_cmd_with_crc() to obtain the data required, if valid data
-        cannot be obtained a weewx.WeeWXIOError will be raised by
+        cannot be obtained a weewx.WeeWxIOError will be raised by
         execute_cmd_with_crc(), our caller needs to be prepared to catch the
         exception.
         """
@@ -1217,7 +1226,7 @@ class AuroraInverter(object):
                     # finally return the ResponseTuple
                     return _response_t
         # if we made it here we have exhausted our attempts to obtain data from
-        # the inverter, log it and raise a WeeWXIOError
+        # the inverter, log it and raise a WeeWxIOError
         log.debug("Unable to send or receive data to/from the inverter")
         raise weewx.WeeWxIOError("Unable to send or receive data to/from the inverter")
 
