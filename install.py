@@ -59,7 +59,7 @@ aurora_config_str = """
     max_tries = 3
     
     # how often to poll the inverter, default is every 20 seconds
-    loop_interval = 10
+    poll_interval = 20
     
     # the driver to use
     driver = user.aurora
