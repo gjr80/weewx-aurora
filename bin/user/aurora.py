@@ -394,17 +394,13 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         else:
             self.poll_interval = DEFAULT_POLL_INTERVAL
         address = int(inverter_dict.get('address', DEFAULT_ADDRESS))
-        # TODO. is max_loop_tries required ?
-        self.max_loop_tries = int(inverter_dict.get('max_loop_tries', 3))
         # get the sensor map
         self.sensor_map = inverter_dict.get('sensor_map',
                                             AuroraDriver.DEFAULT_SENSOR_MAP)
         log.info("   inverter address: %d poll_interval: %d seconds",
                  address,
                  self.poll_interval)
-        log.info('   max_command_tries: %d max_loop_tries: %d',
-                 max_command_tries,
-                 self.max_loop_tries)
+        log.info('   max_command_tries: %d ', max_command_tries)
         log.info('   sensor_map: %s', self.sensor_map)
         # get an AuroraInverter object
         self.inverter = AuroraInverter(port,
@@ -475,15 +471,15 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
 
             # log the inverter data
             if weewx.debug >= 2:
-                # TODO. Sort fields ?
-                log.debug("genLoopPackets: received inverter data packet: %s", _inverter_packet)
+                log.debug("genLoopPackets: received inverter data packet: %s",
+                          weeutil.weeutil.to_sorted_string(_inverter_packet))
             # create a limited loop packet by mapping the inverter data as per
             # the sensor map
             packet = self.map_inverter_packet(_inverter_packet)
             # log the inverter data
             if weewx.debug >= 2:
-                # TODO. Sort fields ?
-                log.debug("genLoopPackets: mapped inverter data packet: %s", packet)
+                log.debug("genLoopPackets: mapped inverter data packet: %s",
+                          weeutil.weeutil.to_sorted_string(packet))
             # now add in/set any fields that require special consideration
             if packet:
                 # dateTime, use our timestamp from earlier
@@ -505,8 +501,8 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
                     self.last_energy = None
                 # log the loop packet
                 if weewx.debug >= 2:
-                    # TODO. Sort fields ?
-                    log.debug("genLoopPackets: generated loop packet: %s", packet)
+                    log.debug("genLoopPackets: generated loop packet: %s",
+                              weeutil.weeutil.to_sorted_string(packet))
                 # yield the packet
                 yield packet
             # wait until it's time to poll again
@@ -686,7 +682,6 @@ class AuroraInverter(object):
     An AuroraInverter object knows how to:
     - communicate directly with the inverter
     - utilise the 'inverter API' to get inverter status/set inverter options
-
     """
 
     DEFAULT_PORT = '/dev/ttyUSB0'
@@ -816,8 +811,7 @@ class AuroraInverter(object):
             }
 
     # alarm states
-    # TODO. What is the appropriate code for 0? None or something else?
-    ALARM = {0:  {'description': 'No Alarm',          'code': None},
+    ALARM = {0:  {'description': 'No Alarm',          'code': 'No alarm code'},
              1:  {'description': 'Sun Low',           'code': 'W001'},
              2:  {'description': 'Input OC',          'code': 'E001'},
              3:  {'description': 'Input UV',          'code': 'W002'},
