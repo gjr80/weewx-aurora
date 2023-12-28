@@ -17,10 +17,10 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see https://www.gnu.org/licenses/.
 
-Version: 0.7.0a2                                      Date: 16 December 2023
+Version: 0.7.0b1                                      Date: 28 December 2023
 
 Revision History
-    16 December 2023    v0.7.0
+    28 December 2023    v0.7.0
         - now WeeWX v5 compatible
         - python v3.6 and earlier no longer supported
         - significant refactoring to move all intimate inverter knowledge out
@@ -153,7 +153,7 @@ log = logging.getLogger(__name__)
 
 # our name and version number
 DRIVER_NAME = 'Aurora'
-DRIVER_VERSION = '0.7.0a2'
+DRIVER_VERSION = '0.7.0b1'
 
 # config defaults
 DEFAULT_POLL_INTERVAL = 20
