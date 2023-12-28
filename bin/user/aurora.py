@@ -529,9 +529,15 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
             if self.inverter.is_running:
                 try:
                     _packet[dsp_field] = self.inverter.get_field(dsp_field)
-                except weewx.WeeWxIOError:
+                except weewx.WeeWXIOError:
+                    # for some reason we could not get the field, most likely
+                    # because the inverter is asleep, but it could otherwise be
+                    # off-line. In any case we should ignore the exception and
+                    # continue.
                     continue
             else:
+                # the inverter is not running, most likely asleeep, so there is
+                # no point continuing, break out of the loop so we can return
                 break
         # carry out any special processing on the packet
         self.process_inverter_packet(_packet)
@@ -1715,8 +1721,11 @@ class AuroraInverter(object):
     def get_state(self):
         """Get the inverter state.
 
-        Also indirectly updates the global_state and transmission_state
-        properties.
+        Call execute_cmd_with_crc() to obtain the inverter state data, if valid
+        data cannot be obtained a weewx.WeeWxIOError will be raised by
+        execute_cmd_with_crc(), our caller needs to be prepared to catch the
+        exception. If valid data is returned this will also cause the
+        global_state and transmission_state properties to be updated.
         """
 
         return self.execute_cmd_with_crc("state_request").data
@@ -1725,7 +1734,10 @@ class AuroraInverter(object):
         """Get inverter system time.
 
         Obtain the inverter system time and return as an epoch timestamp. If
-        the inverter is asleep the value None will be returned.
+        the inverter is asleep the value None will be returned. If valid data
+        cannot be obtained a weewx.WeeWxIOError will be raised by
+        execute_cmd_with_crc(), our caller needs to be prepared to catch the
+        exception.
 
         Returns:
             An epoch timestamp or None.
@@ -1752,7 +1764,15 @@ class AuroraInverter(object):
             True for successful execution or False for unsuccessful execution.
         """
 
-        response_t = self.execute_cmd_with_crc('set_time_date', p1=inverter_ts)
+        try:
+            response_t = self.execute_cmd_with_crc('set_time_date', p1=inverter_ts)
+        except weewx.WeeWxIOError:
+            # If we have a weewx.WeeWxIOError the inverter could not be
+            # contacted or did not return valid data, most likely the inverter
+            # is asleep. Assume the inverter is asleep, log it and return
+            # False.
+            log.error("set_time: Could not contact inverter, it may be asleep")
+            return False
         # update the global state and transmission state properties
         self.global_state = response_t.global_state
         self.transmission_state = response_t.transmission_state
@@ -1761,31 +1781,56 @@ class AuroraInverter(object):
 
     @property
     def last_alarms(self):
-        """Get the last four alarms."""
+        """Get the last four alarms.
+
+        If valid data cannot be obtained a weewx.WeeWxIOError will be raised by
+        execute_cmd_with_crc(), our caller needs to be prepared to catch the
+        exception.
+        """
 
         return self.execute_cmd_with_crc('last_alarms').data
 
     @property
     def part_number(self):
-        """The inverter part number."""
+        """The inverter part number.
+
+        If valid data cannot be obtained a weewx.WeeWxIOError will be raised by
+        execute_cmd_with_crc(), our caller needs to be prepared to catch the
+        exception.
+        """
 
         return self.execute_cmd_with_crc('part_number').data
 
     @property
     def version(self):
-        """The inverter hardware version."""
+        """The inverter hardware version.
+
+        If valid data cannot be obtained a weewx.WeeWxIOError will be raised by
+        execute_cmd_with_crc(), our caller needs to be prepared to catch the
+        exception.
+        """
 
         return self.execute_cmd_with_crc('version').data
 
     @property
     def serial_number(self):
-        """The inverter serial number."""
+        """The inverter serial number.
+
+        If valid data cannot be obtained a weewx.WeeWxIOError will be raised by
+        execute_cmd_with_crc(), our caller needs to be prepared to catch the
+        exception.
+        """
 
         return self.execute_cmd_with_crc('serial_number').data
 
     @property
     def manufacture_date(self):
-        """The inverter manufacture date."""
+        """The inverter manufacture date.
+
+        If valid data cannot be obtained a weewx.WeeWxIOError will be raised by
+        execute_cmd_with_crc(), our caller needs to be prepared to catch the
+        exception.
+        """
 
         return self.execute_cmd_with_crc('manufacture_date').data
 
@@ -1799,6 +1844,10 @@ class AuroraInverter(object):
         Since the firmware release obtained by the driver is typically for
         display purposes we will return the firmware release as a string with
         each character separated by a period.
+
+        If valid data cannot be obtained a weewx.WeeWxIOError will be raised by
+        execute_cmd_with_crc(), our caller needs to be prepared to catch the
+        exception.
         """
 
         # obtain the firmware release as four character string
@@ -2156,7 +2205,7 @@ class DirectAurora(object):
         # display current inverter data
         elif hasattr(self.namespace, 'live_data') and self.namespace.live_data:
             self.live_data()
-        # display the inverger time
+        # display the inverter time
         elif hasattr(self.namespace, 'get_time') and self.namespace.get_time:
             self.get_time()
         # set the inverter time
