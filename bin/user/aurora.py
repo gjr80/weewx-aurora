@@ -525,7 +525,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
             if self.inverter.is_running:
                 try:
                     _packet[dsp_field] = self.inverter.get_field(dsp_field)
-                except weewx.WeeWXIOError:
+                except weewx.WeeWxIOError:
                     # for some reason we could not get the field, most likely
                     # because the inverter is asleep, but it could otherwise be
                     # off-line. In any case we should ignore the exception and
