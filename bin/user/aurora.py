@@ -896,17 +896,17 @@ class AuroraInverter(object):
         # code to be sent to the inverter as well as the decode function to
         # decode the returned data.
         self.commands = {
-            'state_request':    {'cmd_code': 50, 'fn': self._dec_state},
-            'part_number':      {'cmd_code': 52, 'fn': self._dec_ascii},
-            'version':          {'cmd_code': 58, 'fn': self._dec_ascii_and_state},
-            'measure':          {'cmd_code': 59, 'fn': self._dec_float},
-            'serial_number':    {'cmd_code': 63, 'fn': self._dec_ascii},
-            'manufacture_date': {'cmd_code': 65, 'fn': self._dec_week_year},
-            'read_time_date':   {'cmd_code': 70, 'fn': self._dec_ts},
-            'set_time_date':    {'cmd_code': 71, 'fn': self._dec_raw},
-            'firmware_release': {'cmd_code': 72, 'fn': self._dec_ascii_and_state},
-            'cumulated_energy': {'cmd_code': 78, 'fn': self._dec_int},
-            'last_alarms':      {'cmd_code': 86, 'fn': self._dec_alarms}
+            'state_request':    {'cmd_code': 50, 'decode_fn': self._dec_state},
+            'part_number':      {'cmd_code': 52, 'decode_fn': self._dec_ascii},
+            'version':          {'cmd_code': 58, 'decode_fn': self._dec_ascii_and_state},
+            'measure':          {'cmd_code': 59, 'decode_fn': self._dec_float},
+            'serial_number':    {'cmd_code': 63, 'decode_fn': self._dec_ascii},
+            'manufacture_date': {'cmd_code': 65, 'decode_fn': self._dec_week_year},
+            'read_time_date':   {'cmd_code': 70, 'decode_fn': self._dec_ts},
+            'set_time_date':    {'cmd_code': 71, 'decode_fn': self._dec_raw},
+            'firmware_release': {'cmd_code': 72, 'decode_fn': self._dec_ascii_and_state},
+            'cumulated_energy': {'cmd_code': 78, 'decode_fn': self._dec_int},
+            'last_alarms':      {'cmd_code': 86, 'decode_fn': self._dec_alarms}
         }
         # 'Fields' that I can populate. Each entry contains the command and, if
         # applicable, any sub-command code to be sent to the inverter.
@@ -942,7 +942,6 @@ class AuroraInverter(object):
             'serial_number':              {'cmd': 'serial_number'},
             'manufacture_date':           {'cmd': 'manufacture_date'},
             'time_date':                  {'cmd': 'read_time_date'},
-            'setTimeDate':                {'cmd': 'set_time_date'},
             'firmware_release':           {'cmd': 'firmware_release'},
             'day_energy':                 {'cmd': 'cumulated_energy', 'p1':  0},
             'week_energy':                {'cmd': 'cumulated_energy', 'p1':  1},
@@ -1204,14 +1203,14 @@ class AuroraInverter(object):
                 # it. Wrap in a try .. except in case there is a problem
                 # decoding the response
                 try:
-                    _response_t = self.commands[command]['fn'](_resp)
+                    _response_t = self.commands[command]['decode_fn'](_resp)
                 except (IndexError, TypeError):
                     # for some reason the data could not be decoded, log it but
                     # at a higher debug level
                     if weewx.debug >= 2:
                         log.debug("%s: '%s' could not decode response '%s'",
                                   "execute_cmd_with_crc",
-                                  self.commands[command]['fn'].__name__,
+                                  self.commands[command]['decode_fn'].__name__,
                                   format_byte_to_hex(_resp))
                     # return a 'None' ResponseTuple
                     return ResponseTuple(None, None, None)
