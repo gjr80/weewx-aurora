@@ -17,7 +17,7 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see https://www.gnu.org/licenses/.
 
-Version: 0.7.0b1                                      Date: 28 December 2023
+Version: 0.7.0b2                                      Date: 1 January 2024
 
 Revision History
     28 December 2023    v0.7.0
@@ -636,15 +636,8 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         # rounding (0.5) and the delay in the command being issued and acted on
         # by the inverter (1.5)
         _ts = int(time.time() + 2)
-        # the inverters epoch is midnight 1 January 2000 so offset our epoch
-        # timestamp accordingly
-        _inv_ts = _ts - 946648800
-        # pack the value into a Struct object so we can get the offset
-        # timestamp as a bytestring, this will be our payload for set_time
-        s = struct.Struct('>i')
-        _inv_ts_b = s.pack(_inv_ts)
-        # send the command and get the response
-        _response = self.inverter.set_time(_inv_ts_b)
+        # call the inverter driver set_time method and get the response
+        _response = self.inverter.set_time(_ts)
         # If the inverter time was successfully set set_time() will return
         # True, otherwise it will return False. Use the response to log the
         # result.
@@ -685,7 +678,6 @@ class AuroraInverter(object):
     """
 
     DEFAULT_PORT = '/dev/ttyUSB0'
-    DEFAULT_ADDRESS = '2'
     # transmission state code map
     TRANSMISSION = {0: 'Everything is OK',
                     51: 'Command is not implemented',
@@ -914,41 +906,41 @@ class AuroraInverter(object):
             'state':                      {'cmd': 'state_request'},
             'part_number':                {'cmd': 'part_number'},
             'version':                    {'cmd': 'version'},
-            'grid_voltage':               {'cmd': 'measure', 'p1':  1},
-            'grid_current':               {'cmd': 'measure', 'p1':  2},
-            'grid_power':                 {'cmd': 'measure', 'p1':  3},
-            'frequency':                  {'cmd': 'measure', 'p1':  4},
-            'bulk_voltage':               {'cmd': 'measure', 'p1':  5},
-            'leak_dc_current':            {'cmd': 'measure', 'p1':  6},
-            'leak_current':               {'cmd': 'measure', 'p1':  7},
-            'string1_power':              {'cmd': 'measure', 'p1':  8},
-            'string2_power':              {'cmd': 'measure', 'p1':  9},
-            'inverter_temp':              {'cmd': 'measure', 'p1': 21},
-            'booster_temp':               {'cmd': 'measure', 'p1': 22},
-            'string1_voltage':            {'cmd': 'measure', 'p1': 23},
-            'string1_current':            {'cmd': 'measure', 'p1': 25},
-            'string2_voltage':            {'cmd': 'measure', 'p1': 26},
-            'string2_current':            {'cmd': 'measure', 'p1': 27},
-            'grid_dc_voltage':            {'cmd': 'measure', 'p1': 28},
-            'grid_dc_frequency':          {'cmd': 'measure', 'p1': 29},
-            'isolation_resistance':       {'cmd': 'measure', 'p1': 30},
-            'bulk_dc_voltage':            {'cmd': 'measure', 'p1': 31},
-            'grid_average_voltage':       {'cmd': 'measure', 'p1': 32},
-            'bulk_mid_voltage':           {'cmd': 'measure', 'p1': 33},
-            'peak_power':                 {'cmd': 'measure', 'p1': 34},
-            'day_peak_power':             {'cmd': 'measure', 'p1': 35},
-            'grid_voltage_neutral':       {'cmd': 'measure', 'p1': 36},
-            'grid_voltage_neutral_phase': {'cmd': 'measure', 'p1': 38},
+            'grid_voltage':               {'cmd': 'measure', 'payload': b'\x01'},
+            'grid_current':               {'cmd': 'measure', 'payload': b'\x02'},
+            'grid_power':                 {'cmd': 'measure', 'payload': b'\x03'},
+            'frequency':                  {'cmd': 'measure', 'payload': b'\x04'},
+            'bulk_voltage':               {'cmd': 'measure', 'payload': b'\x05'},
+            'leak_dc_current':            {'cmd': 'measure', 'payload': b'\x06'},
+            'leak_current':               {'cmd': 'measure', 'payload': b'\x07'},
+            'string1_power':              {'cmd': 'measure', 'payload': b'\x08'},
+            'string2_power':              {'cmd': 'measure', 'payload': b'\x09'},
+            'inverter_temp':              {'cmd': 'measure', 'payload': b'\x21'},
+            'booster_temp':               {'cmd': 'measure', 'payload': b'\x22'},
+            'string1_voltage':            {'cmd': 'measure', 'payload': b'\x23'},
+            'string1_current':            {'cmd': 'measure', 'payload': b'\x25'},
+            'string2_voltage':            {'cmd': 'measure', 'payload': b'\x26'},
+            'string2_current':            {'cmd': 'measure', 'payload': b'\x27'},
+            'grid_dc_voltage':            {'cmd': 'measure', 'payload': b'\x28'},
+            'grid_dc_frequency':          {'cmd': 'measure', 'payload': b'\x29'},
+            'isolation_resistance':       {'cmd': 'measure', 'payload': b'\x30'},
+            'bulk_dc_voltage':            {'cmd': 'measure', 'payload': b'\x31'},
+            'grid_average_voltage':       {'cmd': 'measure', 'payload': b'\x32'},
+            'bulk_mid_voltage':           {'cmd': 'measure', 'payload': b'\x33'},
+            'peak_power':                 {'cmd': 'measure', 'payload': b'\x34'},
+            'day_peak_power':             {'cmd': 'measure', 'payload': b'\x35'},
+            'grid_voltage_neutral':       {'cmd': 'measure', 'payload': b'\x36'},
+            'grid_voltage_neutral_phase': {'cmd': 'measure', 'payload': b'\x38'},
             'serial_number':              {'cmd': 'serial_number'},
             'manufacture_date':           {'cmd': 'manufacture_date'},
             'time_date':                  {'cmd': 'read_time_date'},
             'firmware_release':           {'cmd': 'firmware_release'},
-            'day_energy':                 {'cmd': 'cumulated_energy', 'p1':  0},
-            'week_energy':                {'cmd': 'cumulated_energy', 'p1':  1},
-            'month_energy':               {'cmd': 'cumulated_energy', 'p1':  3},
-            'year_energy':                {'cmd': 'cumulated_energy', 'p1':  4},
-            'total_energy':               {'cmd': 'cumulated_energy', 'p1':  5},
-            'partial_energy':             {'cmd': 'cumulated_energy', 'p1':  6},
+            'day_energy':                 {'cmd': 'cumulated_energy', 'payload': b'\x00'},
+            'week_energy':                {'cmd': 'cumulated_energy', 'payload': b'\x01'},
+            'month_energy':               {'cmd': 'cumulated_energy', 'payload': b'\x03'},
+            'year_energy':                {'cmd': 'cumulated_energy', 'payload': b'\x04'},
+            'total_energy':               {'cmd': 'cumulated_energy', 'payload': b'\x05'},
+            'partial_energy':             {'cmd': 'cumulated_energy', 'payload': b'\x06'},
             'last_alarms':                {'cmd': 'last_alarms'}
         }
         # initialise transmission state and global state properties
@@ -1083,7 +1075,7 @@ class AuroraInverter(object):
                                                                                     n))
         return _buffer
 
-    def get_field(self, field_name, source=None):
+    def get_field(self, field_name):
         """Obtain the value of a given field using the API.
 
         Call execute_cmd_with_crc() to obtain the data required, if valid data
@@ -1093,28 +1085,19 @@ class AuroraInverter(object):
         """
 
         response_t = self.execute_cmd_with_crc(command=self.field_commands[field_name]['cmd'],
-                                               p1=self.field_commands[field_name].get('p1'),
-                                               payload=None,
-                                               p2=source)
+                                               payload=self.field_commands[field_name].get('payload'))
         return response_t.data
 
-    def execute_cmd_with_crc(self, command, p1=None, p2=None, payload=None):
+    def execute_cmd_with_crc(self, command, payload=None):
         """Send a command with CRC to the inverter and return the decoded
         response.
 
         Inputs:
             command: The inverter command being issued, eg 'state_request'.
                      String.
-            p1:      The first parameter used with the command code. Purpose
-                     and parameter name vary with the command. Optional,
-                     integer or None if not used.
-            p2:      The second parameter included after the command code and
-                     first parameter. If the first parameter is unused
-                     (ie None) the second parameter is ignored. Optional,
-                     integer or None if not used.
             payload: Data to be sent to the inverter as part of the command.
-                     Will occupy part or all of bytes 2,3,4,5,6 and 7.
-                     Currently only used by setTime. String.
+                     Occupies part or all of bytes 2,3,4,5,6 and 7. Bytestring.
+
         The transmission_state and/or global_state properties are updated from
         any command response that includes inverter Transmission State and/or
         Global State data.
@@ -1129,8 +1112,6 @@ class AuroraInverter(object):
 
         # get the command message to be sent including CRC
         _command_bytes_crc = self.construct_cmd_message(command_code=self.commands[command]['cmd_code'],
-                                                        p1=p1,
-                                                        p2=p2,
                                                         payload=payload)
         # now send the assembled command retrying up to max_tries times
         for count in range(self.max_tries):
@@ -1340,7 +1321,7 @@ class AuroraInverter(object):
         b = s.pack(i & 0xff, i // 256)
         return b
 
-    def construct_cmd_message(self, command_code, p1=None, p2=0, payload=None):
+    def construct_cmd_message(self, command_code, payload=None):
         """Construct the byte sequence for a command.
 
         The inverter communications protocol uses fixed length transmission
@@ -1365,17 +1346,9 @@ class AuroraInverter(object):
             command_code: The inverter command being issued, eg 'getGridV'.
                           Must be a key to the AuroraInverter.commands dict.
                           Mandatory, string.
-            p1:           The first parameter included after the command code.
-                          Purpose and parameter name vary with the command.
-                          Optional, integer or None if not used.
-            p2:           The second parameter included after the command code
-                          and first parameter. If the first parameter is unused
-                          (ie None) the second parameter is ignored. Optional,
-                          integer or None if not used.
             payload:      Data to be sent to the inverter as part of the
                           command. Will occupy part or all of bytes 2, 3, 4, 5,
-                          6 and 7. Optional, bytestring. (currently only used
-                          to set inverter time)
+                          6 and 7. Optional, bytestring.
 
         The command sequence bytestring is constructed by creating a tuple of
         bytes from the command parameters. The tuple is padded with '0's to
@@ -1393,36 +1366,165 @@ class AuroraInverter(object):
 
         # all command sequences start with the inverter address and command
         # code, this is the start of our command sequence tuple
-        _stem_t = (self.address, command_code)
+        _command_b_str = struct.pack('2B',self.address, command_code)
         # the rest of the command sequence tuple depends on what we have been
         # asked to send
 
-        # do we have a parameter 1 (p1) to send?
-        if p1 is not None:
-            # We have a parameter 1, this is the next byte in our sequence. But
-            # do we have a second parameter? If we do then parameter 2 is next
-            # after parameter 1, otherwise it is parameter 1 by itself.
-            command_t = _stem_t + (p1, p2) if p2 is not None else _stem_t + (p1, )
-        elif payload is not None:
-            # We have no parameters, but we have a payload. Our command
-            # sequence tuple consists of the stem followed by the payload.
-
-            # as the payload is a bytestring we can convert the payload to a
-            # tuple with a simple list comprehension
-            payload_t = tuple([b for b in payload])
-            # now construct the command sequence tuple
-            command_t = _stem_t + payload_t
-        else:
-            # we have no parameters or payload so our command sequence tuple
-            # is simply the already constructed stem
-            command_t = _stem_t
-        # now pad out the tuple with 0s until it's length is 8 (10 bytes -
-        # 2 bytes for CRC)
-        padded_command_t = command_t + (0,) * (8 - len(command_t))
-        # create a bytes object by packing our command tuple items
-        command_bytes = struct.pack('8B', *padded_command_t)
+        # do we have a payload?
+        if payload is not None:
+            # as the payload is a bytestring we can simply add it to the
+            # command sequence bytestring
+            _command_b_str += payload
+        # now pad out the command sequence with 0s until it's length is 8
+        # (10 bytes - 2 bytes for CRC)
+        _command_b_str += b'\x00' * (8 - len(_command_b_str))
         # add the CRC and return our byte sequence
-        return command_bytes + self.word2struct(self.crc16(command_bytes))
+        return _command_b_str + self.word2struct(self.crc16(_command_b_str))
+
+    def get_state(self):
+        """Get the inverter state.
+
+        Call execute_cmd_with_crc() to obtain the inverter state data, if valid
+        data cannot be obtained a weewx.WeeWxIOError will be raised by
+        execute_cmd_with_crc(), our caller needs to be prepared to catch the
+        exception. If valid data is returned this will also cause the
+        global_state and transmission_state properties to be updated.
+        """
+
+        return self.execute_cmd_with_crc("state_request").data
+
+    def get_time(self):
+        """Get inverter system time.
+
+        Obtain the inverter system time and return as an epoch timestamp. If
+        the inverter is asleep the value None will be returned. If valid data
+        cannot be obtained a weewx.WeeWxIOError will be raised by
+        execute_cmd_with_crc(), our caller needs to be prepared to catch the
+        exception.
+
+        Returns:
+            An epoch timestamp or None.
+        """
+
+        return self.get_field('time_date')
+
+    def set_time(self, epoch_ts):
+        """Set inverter system time.
+
+        Set the inverter system time to the offset timestamp value inverter_ts.
+        If the 'set_time_date' command executed successfully the command
+        returns a ResponseTuple object where:
+        - inverter transmission state == 0
+        - inverter global state == 6 (ie self.is_running == True)
+        - a valid CRC
+
+        The validity of the CRC is confirmed as part of the command execution,
+        the other two conditions we check here and if met we return True. If
+        the other two conditions were not met we return False indicating the
+        command did not complete successfully.
+
+        Returns:
+            True for successful execution or False for unsuccessful execution.
+        """
+
+        # the inverters epoch is midnight 1 January 2000 so offset our epoch
+        # timestamp accordingly
+        _inverter_ts = epoch_ts - 946648800
+        # pack the value into a Struct object so we can get the offset
+        # timestamp as a bytestring, this will be our payload for set_time_date
+        _inverter_ts_b_str = struct.pack('>i', _inverter_ts)
+        try:
+            response_t = self.execute_cmd_with_crc('set_time_date',
+                                                   payload=_inverter_ts_b_str)
+        except weewx.WeeWxIOError:
+            # If we have a weewx.WeeWxIOError the inverter could not be
+            # contacted or did not return valid data, most likely the inverter
+            # is asleep. Assume the inverter is asleep, log it and return
+            # False.
+            log.error("set_time: Could not contact inverter, it may be asleep")
+            return False
+        # update the global state and transmission state properties
+        self.global_state = response_t.global_state
+        self.transmission_state = response_t.transmission_state
+        # return True or False
+        return self.transmission_state == 0 and self.is_running
+
+    @property
+    def last_alarms(self):
+        """Get the last four alarms.
+
+        If valid data cannot be obtained a weewx.WeeWxIOError will be raised by
+        execute_cmd_with_crc(), our caller needs to be prepared to catch the
+        exception.
+        """
+
+        return self.execute_cmd_with_crc('last_alarms').data
+
+    @property
+    def part_number(self):
+        """The inverter part number.
+
+        If valid data cannot be obtained a weewx.WeeWxIOError will be raised by
+        execute_cmd_with_crc(), our caller needs to be prepared to catch the
+        exception.
+        """
+
+        return self.execute_cmd_with_crc('part_number').data
+
+    @property
+    def version(self):
+        """The inverter hardware version.
+
+        If valid data cannot be obtained a weewx.WeeWxIOError will be raised by
+        execute_cmd_with_crc(), our caller needs to be prepared to catch the
+        exception.
+        """
+
+        return self.execute_cmd_with_crc('version').data
+
+    @property
+    def serial_number(self):
+        """The inverter serial number.
+
+        If valid data cannot be obtained a weewx.WeeWxIOError will be raised by
+        execute_cmd_with_crc(), our caller needs to be prepared to catch the
+        exception.
+        """
+
+        return self.execute_cmd_with_crc('serial_number').data
+
+    @property
+    def manufacture_date(self):
+        """The inverter manufacture date.
+
+        If valid data cannot be obtained a weewx.WeeWxIOError will be raised by
+        execute_cmd_with_crc(), our caller needs to be prepared to catch the
+        exception.
+        """
+
+        return self.execute_cmd_with_crc('manufacture_date').data
+
+    @property
+    def firmware_release(self):
+        """The inverter firmware release.
+
+        The firmware release provided by the inverter is a four character
+        string (eg, 'C016'); however, the firmware release is commonly
+        displayed as four characters separated by periods (eg, 'C.0.1.6').
+        Since the firmware release obtained by the driver is typically for
+        display purposes we will return the firmware release as a string with
+        each character separated by a period.
+
+        If valid data cannot be obtained a weewx.WeeWxIOError will be raised by
+        execute_cmd_with_crc(), our caller needs to be prepared to catch the
+        exception.
+        """
+
+        # obtain the firmware release as four character string
+        _fw = self.execute_cmd_with_crc('firmware_release').data
+        # return the firmware release as a string with each character separated
+        # by a period
+        return '.'.join([c for c in _fw])
 
     @staticmethod
     def _dec_state(v):
@@ -1710,144 +1812,6 @@ class AuroraInverter(object):
             return ResponseTuple(int(v[0]), int(v[1]), _alarms)
         except (IndexError, TypeError):
             return ResponseTuple(None, None, None)
-
-    def get_state(self):
-        """Get the inverter state.
-
-        Call execute_cmd_with_crc() to obtain the inverter state data, if valid
-        data cannot be obtained a weewx.WeeWxIOError will be raised by
-        execute_cmd_with_crc(), our caller needs to be prepared to catch the
-        exception. If valid data is returned this will also cause the
-        global_state and transmission_state properties to be updated.
-        """
-
-        return self.execute_cmd_with_crc("state_request").data
-
-    def get_time(self):
-        """Get inverter system time.
-
-        Obtain the inverter system time and return as an epoch timestamp. If
-        the inverter is asleep the value None will be returned. If valid data
-        cannot be obtained a weewx.WeeWxIOError will be raised by
-        execute_cmd_with_crc(), our caller needs to be prepared to catch the
-        exception.
-
-        Returns:
-            An epoch timestamp or None.
-        """
-
-        return self.execute_cmd_with_crc('read_time_date').data
-
-    def set_time(self, inverter_ts):
-        """Set inverter system time.
-
-        Set the inverter system time to the offset timestamp value inverter_ts.
-        If the 'set_time_date' command executed successfully the command
-        returns a ResponseTuple object where:
-        - inverter transmission state == 0
-        - inverter global state == 6 (ie self.is_running == True)
-        - a valid CRC
-
-        The validity of the CRC is confirmed as part of the command execution,
-        the other two conditions we check here and if met we return True. If
-        the other two conditions were not met we return False indicating the
-        command did not complete successfully.
-
-        Returns:
-            True for successful execution or False for unsuccessful execution.
-        """
-
-        try:
-            response_t = self.execute_cmd_with_crc('set_time_date', p1=inverter_ts)
-        except weewx.WeeWxIOError:
-            # If we have a weewx.WeeWxIOError the inverter could not be
-            # contacted or did not return valid data, most likely the inverter
-            # is asleep. Assume the inverter is asleep, log it and return
-            # False.
-            log.error("set_time: Could not contact inverter, it may be asleep")
-            return False
-        # update the global state and transmission state properties
-        self.global_state = response_t.global_state
-        self.transmission_state = response_t.transmission_state
-        # return True or False
-        return self.transmission_state == 0 and self.is_running
-
-    @property
-    def last_alarms(self):
-        """Get the last four alarms.
-
-        If valid data cannot be obtained a weewx.WeeWxIOError will be raised by
-        execute_cmd_with_crc(), our caller needs to be prepared to catch the
-        exception.
-        """
-
-        return self.execute_cmd_with_crc('last_alarms').data
-
-    @property
-    def part_number(self):
-        """The inverter part number.
-
-        If valid data cannot be obtained a weewx.WeeWxIOError will be raised by
-        execute_cmd_with_crc(), our caller needs to be prepared to catch the
-        exception.
-        """
-
-        return self.execute_cmd_with_crc('part_number').data
-
-    @property
-    def version(self):
-        """The inverter hardware version.
-
-        If valid data cannot be obtained a weewx.WeeWxIOError will be raised by
-        execute_cmd_with_crc(), our caller needs to be prepared to catch the
-        exception.
-        """
-
-        return self.execute_cmd_with_crc('version').data
-
-    @property
-    def serial_number(self):
-        """The inverter serial number.
-
-        If valid data cannot be obtained a weewx.WeeWxIOError will be raised by
-        execute_cmd_with_crc(), our caller needs to be prepared to catch the
-        exception.
-        """
-
-        return self.execute_cmd_with_crc('serial_number').data
-
-    @property
-    def manufacture_date(self):
-        """The inverter manufacture date.
-
-        If valid data cannot be obtained a weewx.WeeWxIOError will be raised by
-        execute_cmd_with_crc(), our caller needs to be prepared to catch the
-        exception.
-        """
-
-        return self.execute_cmd_with_crc('manufacture_date').data
-
-    @property
-    def firmware_release(self):
-        """The inverter firmware release.
-
-        The firmware release provided by the inverter is a four character
-        string (eg, 'C016'); however, the firmware release is commonly
-        displayed as four characters separated by periods (eg, 'C.0.1.6').
-        Since the firmware release obtained by the driver is typically for
-        display purposes we will return the firmware release as a string with
-        each character separated by a period.
-
-        If valid data cannot be obtained a weewx.WeeWxIOError will be raised by
-        execute_cmd_with_crc(), our caller needs to be prepared to catch the
-        exception.
-        """
-
-        # obtain the firmware release as four character string
-        _fw = self.execute_cmd_with_crc('firmware_release').data
-        # return the firmware release as a string with each character separated
-        # by a period
-        return '.'.join([c for c in _fw])
 
 
 # ============================================================================
