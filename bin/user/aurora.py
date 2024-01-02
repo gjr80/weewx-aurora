@@ -677,7 +677,6 @@ class AuroraInverter(object):
     - utilise the 'inverter API' to get inverter status/set inverter options
     """
 
-    DEFAULT_PORT = '/dev/ttyUSB0'
     # transmission state code map
     TRANSMISSION = {0: 'Everything is OK',
                     51: 'Command is not implemented',
@@ -1938,6 +1937,9 @@ class AuroraConfigurator(weewx.drivers.AbstractConfigurator):
 class AuroraConfEditor(weewx.drivers.AbstractConfEditor):
     """Config editor for the Aurora driver."""
 
+    # define the default port used during config editing
+    DEFAULT_CONFIG_PORT = '/dev/ttyUSB0'
+
     @property
     def default_stanza(self):
         return f"""
@@ -1948,7 +1950,7 @@ class AuroraConfEditor(weewx.drivers.AbstractConfEditor):
     model = INSERT_MODEL_HERE
 
     # Serial port such as /dev/ttyS0, /dev/ttyUSB0, or /dev/cua0
-    port = {AuroraInverter.DEFAULT_PORT}
+    port = {AuroraConfEditor.DEFAULT_CONFIG_PORT}
 
     # inverter address, usually 2
     address = {AuroraInverter.DEFAULT_ADDRESS}
@@ -1963,7 +1965,7 @@ class AuroraConfEditor(weewx.drivers.AbstractConfEditor):
         model = self._prompt('model', 'Aurora PVI-6000')
         print("Specify the serial port on which the inverter is connected, for")
         print("example: /dev/ttyUSB0 or /dev/ttyS0 or /dev/cua0.")
-        port = self._prompt('port', AuroraInverter.DEFAULT_PORT)
+        port = self._prompt('port', AuroraConfEditor.DEFAULT_CONFIG_PORT)
         print("Specify the inverter address, normally 2")
         address = self._prompt('address', AuroraInverter.DEFAULT_ADDRESS)
         return {'model': model,
@@ -2075,7 +2077,6 @@ class DirectAurora(object):
     options.
     """
 
-    DEFAULT_PORT = '/dev/ttyUSB0'
     # inverter observation group dict, this maps all inverter 'fields' to a
     # WeeWX unit group
     inverter_obs_group_dict = {
