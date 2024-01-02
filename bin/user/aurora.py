@@ -624,30 +624,44 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
     def setTime(self):
         """Set inverter system time.
 
-        The WeeWX StdTimeSync service will periodically check the inverters
-        internal clock and use setTime() to adjust the inverters clock if
-        required. As the inverters clock cannot be read or set when the
-        inverter is asleep, setTime() will take one of two actions. If the
-        inverter is asleep then a NotImplementedError is raised, if the
-        inverter is awake then the time is set.
+        The WeeWX StdTimeSync service will periodically check the inverter's
+        internal clock and use setTime() to adjust the inverter's clock to
+        match the WeeWX system time if required. As the inverter's clock cannot
+        be read or set when the inverter is asleep, setTime() will take one of
+        two actions. If the inverter is asleep a NotImplementedError is raised,
+        this will cause WeeWX to continue normal operation. If the inverter is
+        awake the time is set.
         """
 
         # get the current WeeWX system time, offset by 2 seconds to allow for
         # rounding (0.5) and the delay in the command being issued and acted on
         # by the inverter (1.5)
         _ts = int(time.time() + 2)
-        # call the inverter driver set_time method and get the response
-        _response = self.inverter.set_time(_ts)
-        # If the inverter time was successfully set set_time() will return
-        # True, otherwise it will return False. Use the response to log the
-        # result.
-        if _response:
-            # set_time() completed successfully so log it
-            log.info("Inverter time set")
+        # call the AuroraDriver set_time method using the timestamp just
+        # calculated and obtain the response, be prepared to catch the
+        # WeeWxIOError raised if the inverter is asleep
+        try:
+            _response = self.inverter.set_time(_ts)
+        except weewx.WeeWXError as e:
+            raise NotImplementedError(e)
+        except Exception as e:
+            # some other exception occurred, log it and raise it
+            log.error("setTime: Unexpected exception")
+            log.error("  ***** %s", e)
+            raise
         else:
-            # something went wrong and the inverter time was not set; it's not fatal, but we need to log the
-            # failure. Assume any errors were logged further down the chain, so we just simply log the failure.
-            log.error("Inverter time was not set")
+            # If the inverter time was successfully set, set_time() will return
+            # True, otherwise it will return False. Use the response to log the
+            # result.
+            if _response:
+                # set_time() completed successfully so log it
+                log.info("Inverter time set")
+            else:
+                # something went wrong and the inverter time was not set; it's
+                # not fatal, but we need to log the failure. Assume any errors
+                # were logged further down the chain, so we just simply log the
+                # failure.
+                log.error("Inverter time was not set")
 
     @property
     def hardware_name(self):
@@ -1397,9 +1411,8 @@ class AuroraInverter(object):
 
         Obtain the inverter system time and return as an epoch timestamp. If
         the inverter is asleep the value None will be returned. If valid data
-        cannot be obtained a weewx.WeeWxIOError will be raised by
-        execute_cmd_with_crc(), our caller needs to be prepared to catch the
-        exception.
+        cannot be obtained a weewx.WeeWxIOError will have been raised, our
+        caller needs to be prepared to catch the exception.
 
         Returns:
             An epoch timestamp or None.
@@ -1422,8 +1435,13 @@ class AuroraInverter(object):
         the other two conditions were not met we return False indicating the
         command did not complete successfully.
 
+        The inverter may be asleep so will not respond to any commands. In such
+        cases a weewx.WeeWxIOError will have been raised. In such cases the
+        error is logged and the exception re-raised to be handled by the
+        caller.
+
         Returns:
-            True for successful execution or False for unsuccessful execution.
+            True for successful execution or raises a or False for unsuccessful execution.
         """
 
         # the inverters epoch is midnight 1 January 2000 so offset our epoch
@@ -1441,20 +1459,23 @@ class AuroraInverter(object):
             # is asleep. Assume the inverter is asleep, log it and return
             # False.
             log.error("set_time: Could not contact inverter, it may be asleep")
-            return False
-        # update the global state and transmission state properties
-        self.global_state = response_t.global_state
-        self.transmission_state = response_t.transmission_state
-        # return True or False
-        return self.transmission_state == 0 and self.is_running
+            log.error("     %s" % e)
+            # re-raise the error with a slightly different message for our
+            # caller
+            raise weewx.WeeWxIOError("set_time: Could not contact inverter, it may be asleep")
+        else:
+            # update the global state and transmission state properties
+            self.global_state = response_t.global_state
+            self.transmission_state = response_t.transmission_state
+            # return True or False
+            return self.transmission_state == 0 and self.is_running
 
     @property
     def last_alarms(self):
         """Get the last four alarms.
 
-        If valid data cannot be obtained a weewx.WeeWxIOError will be raised by
-        execute_cmd_with_crc(), our caller needs to be prepared to catch the
-        exception.
+        If valid data cannot be obtained a weewx.WeeWxIOError will have been
+        raised, our caller needs to be prepared to catch the exception.
         """
 
         return self.execute_cmd_with_crc('last_alarms').data
@@ -1463,9 +1484,8 @@ class AuroraInverter(object):
     def part_number(self):
         """The inverter part number.
 
-        If valid data cannot be obtained a weewx.WeeWxIOError will be raised by
-        execute_cmd_with_crc(), our caller needs to be prepared to catch the
-        exception.
+        If valid data cannot be obtained a weewx.WeeWxIOError will have been
+        raised, our caller needs to be prepared to catch the exception.
         """
 
         return self.execute_cmd_with_crc('part_number').data
@@ -1474,9 +1494,8 @@ class AuroraInverter(object):
     def version(self):
         """The inverter hardware version.
 
-        If valid data cannot be obtained a weewx.WeeWxIOError will be raised by
-        execute_cmd_with_crc(), our caller needs to be prepared to catch the
-        exception.
+        If valid data cannot be obtained a weewx.WeeWxIOError will have been
+        raised, our caller needs to be prepared to catch the exception.
         """
 
         return self.execute_cmd_with_crc('version').data
@@ -1485,9 +1504,8 @@ class AuroraInverter(object):
     def serial_number(self):
         """The inverter serial number.
 
-        If valid data cannot be obtained a weewx.WeeWxIOError will be raised by
-        execute_cmd_with_crc(), our caller needs to be prepared to catch the
-        exception.
+        If valid data cannot be obtained a weewx.WeeWxIOError will have been
+        raised, our caller needs to be prepared to catch the exception.
         """
 
         return self.execute_cmd_with_crc('serial_number').data
@@ -1496,9 +1514,8 @@ class AuroraInverter(object):
     def manufacture_date(self):
         """The inverter manufacture date.
 
-        If valid data cannot be obtained a weewx.WeeWxIOError will be raised by
-        execute_cmd_with_crc(), our caller needs to be prepared to catch the
-        exception.
+        If valid data cannot be obtained a weewx.WeeWxIOError will have been
+        raised, our caller needs to be prepared to catch the exception.
         """
 
         return self.execute_cmd_with_crc('manufacture_date').data
@@ -1514,9 +1531,8 @@ class AuroraInverter(object):
         display purposes we will return the firmware release as a string with
         each character separated by a period.
 
-        If valid data cannot be obtained a weewx.WeeWxIOError will be raised by
-        execute_cmd_with_crc(), our caller needs to be prepared to catch the
-        exception.
+        If valid data cannot be obtained a weewx.WeeWxIOError will have been
+        raised, our caller needs to be prepared to catch the exception.
         """
 
         # obtain the firmware release as four character string
@@ -2164,11 +2180,11 @@ class DirectAurora(object):
         elif hasattr(self.namespace, 'live_data') and self.namespace.live_data:
             self.live_data()
         # display the inverter time
-        elif hasattr(self.namespace, 'get_time') and self.namespace.get_time:
-            self.get_time()
+        elif hasattr(self.namespace, 'get_time') and self.namespace.get_inverter_time:
+            self.get_inverter_time()
         # set the inverter time
-        elif hasattr(self.namespace, 'set_time') and self.namespace.set_time:
-            self.set_time()
+        elif hasattr(self.namespace, 'set_time') and self.namespace.set_inverter_time:
+            self.set_inverter_time()
         # no valid option selected, display the help text
         else:
             print()
@@ -2420,7 +2436,8 @@ class DirectAurora(object):
                 print()
                 print(f'An unexpected error occurred: {e}')
 
-    def get_time(self):
+    def get_inverter_time(self):
+        """Obtain and display the inverter date-time."""
 
         # get an AuroraDriver object, wrap in a try .. except to catch any
         # exceptions, particularly if the inverter is asleep
@@ -2449,7 +2466,8 @@ class DirectAurora(object):
             print(f"Inverter date-time is {timestamp_to_string(inverter_ts)}")
             print(f"    Clock error is {_error:.3f} seconds (positive is fast)")
 
-    def set_time(self):
+    def set_inverter_time(self):
+        """Set the inverter date-time."""
 
         # get an AuroraDriver object, wrap in a try .. except to catch any
         # exceptions, particularly if the inverter is asleep
