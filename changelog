@@ -11,6 +11,8 @@ v0.7.0
 *   removed option to use inverter time as loop packet dateTime field
 *   replaced the deprecated optparse module with argparse
 *   add bolding to usage instructions when driver is run directly
+*   removed distutils dependency in installer
+*   python 3.13 compatible
 v0.6.1
 *   fix issue with structure of inverter commands with a payload
 v0.6.0
