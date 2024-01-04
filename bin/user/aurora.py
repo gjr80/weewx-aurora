@@ -1379,7 +1379,7 @@ class AuroraInverter(object):
 
         # all command sequences start with the inverter address and command
         # code, this is the start of our command sequence tuple
-        _command_b_str = struct.pack('2B',self.address, command_code)
+        _command_b_str = struct.pack('2B', self.address, command_code)
         # the rest of the command sequence tuple depends on what we have been
         # asked to send
 
@@ -1453,7 +1453,7 @@ class AuroraInverter(object):
         try:
             response_t = self.execute_cmd_with_crc('set_time_date',
                                                    payload=_inverter_ts_b_str)
-        except weewx.WeeWxIOError:
+        except weewx.WeeWxIOError as e:
             # If we have a weewx.WeeWxIOError the inverter could not be
             # contacted or did not return valid data, most likely the inverter
             # is asleep. Assume the inverter is asleep, log it and return
@@ -1969,7 +1969,7 @@ class AuroraConfEditor(weewx.drivers.AbstractConfEditor):
     port = {AuroraConfEditor.DEFAULT_CONFIG_PORT}
 
     # inverter address, usually 2
-    address = {AuroraInverter.DEFAULT_ADDRESS}
+    address = {DEFAULT_ADDRESS}
 
     # The driver to use:
     driver = user.aurora
@@ -1983,7 +1983,7 @@ class AuroraConfEditor(weewx.drivers.AbstractConfEditor):
         print("example: /dev/ttyUSB0 or /dev/ttyS0 or /dev/cua0.")
         port = self._prompt('port', AuroraConfEditor.DEFAULT_CONFIG_PORT)
         print("Specify the inverter address, normally 2")
-        address = self._prompt('address', AuroraInverter.DEFAULT_ADDRESS)
+        address = self._prompt('address', DEFAULT_ADDRESS)
         return {'model': model,
                 'port': port,
                 'address': address
