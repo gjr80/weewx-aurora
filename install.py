@@ -41,7 +41,7 @@ import weewx
 from setup import ExtensionInstaller
 
 REQUIRED_WEEWX_VERSION = "5.0.0b1"
-AURORA_VERSION = "0.7.0b2"
+AURORA_VERSION = "0.7.0"
 
 aurora_config_str = """
 [Aurora]
