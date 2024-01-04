@@ -928,22 +928,22 @@ class AuroraInverter(object):
             'leak_current':               {'cmd': 'measure', 'payload': b'\x07'},
             'string1_power':              {'cmd': 'measure', 'payload': b'\x08'},
             'string2_power':              {'cmd': 'measure', 'payload': b'\x09'},
-            'inverter_temp':              {'cmd': 'measure', 'payload': b'\x21'},
-            'booster_temp':               {'cmd': 'measure', 'payload': b'\x22'},
-            'string1_voltage':            {'cmd': 'measure', 'payload': b'\x23'},
-            'string1_current':            {'cmd': 'measure', 'payload': b'\x25'},
-            'string2_voltage':            {'cmd': 'measure', 'payload': b'\x26'},
-            'string2_current':            {'cmd': 'measure', 'payload': b'\x27'},
-            'grid_dc_voltage':            {'cmd': 'measure', 'payload': b'\x28'},
-            'grid_dc_frequency':          {'cmd': 'measure', 'payload': b'\x29'},
-            'isolation_resistance':       {'cmd': 'measure', 'payload': b'\x30'},
-            'bulk_dc_voltage':            {'cmd': 'measure', 'payload': b'\x31'},
-            'grid_average_voltage':       {'cmd': 'measure', 'payload': b'\x32'},
-            'bulk_mid_voltage':           {'cmd': 'measure', 'payload': b'\x33'},
-            'peak_power':                 {'cmd': 'measure', 'payload': b'\x34'},
-            'day_peak_power':             {'cmd': 'measure', 'payload': b'\x35'},
-            'grid_voltage_neutral':       {'cmd': 'measure', 'payload': b'\x36'},
-            'grid_voltage_neutral_phase': {'cmd': 'measure', 'payload': b'\x38'},
+            'inverter_temp':              {'cmd': 'measure', 'payload': b'\x15'},
+            'booster_temp':               {'cmd': 'measure', 'payload': b'\x16'},
+            'string1_voltage':            {'cmd': 'measure', 'payload': b'\x17'},
+            'string1_current':            {'cmd': 'measure', 'payload': b'\x19'},
+            'string2_voltage':            {'cmd': 'measure', 'payload': b'\x1a'},
+            'string2_current':            {'cmd': 'measure', 'payload': b'\x1b'},
+            'grid_dc_voltage':            {'cmd': 'measure', 'payload': b'\x1c'},
+            'grid_dc_frequency':          {'cmd': 'measure', 'payload': b'\x1d'},
+            'isolation_resistance':       {'cmd': 'measure', 'payload': b'\x1e'},
+            'bulk_dc_voltage':            {'cmd': 'measure', 'payload': b'\x1f'},
+            'grid_average_voltage':       {'cmd': 'measure', 'payload': b'\x20'},
+            'bulk_mid_voltage':           {'cmd': 'measure', 'payload': b'\x21'},
+            'peak_power':                 {'cmd': 'measure', 'payload': b'\x22'},
+            'day_peak_power':             {'cmd': 'measure', 'payload': b'\x23'},
+            'grid_voltage_neutral':       {'cmd': 'measure', 'payload': b'\x24'},
+            'grid_voltage_neutral_phase': {'cmd': 'measure', 'payload': b'\x26'},
             'serial_number':              {'cmd': 'serial_number'},
             'manufacture_date':           {'cmd': 'manufacture_date'},
             'time_date':                  {'cmd': 'read_time_date'},
@@ -2180,10 +2180,10 @@ class DirectAurora(object):
         elif hasattr(self.namespace, 'live_data') and self.namespace.live_data:
             self.live_data()
         # display the inverter time
-        elif hasattr(self.namespace, 'get_time') and self.namespace.get_inverter_time:
+        elif hasattr(self.namespace, 'get_time') and self.namespace.get_time:
             self.get_inverter_time()
         # set the inverter time
-        elif hasattr(self.namespace, 'set_time') and self.namespace.set_inverter_time:
+        elif hasattr(self.namespace, 'set_time') and self.namespace.set_time:
             self.set_inverter_time()
         # no valid option selected, display the help text
         else:
@@ -2338,9 +2338,9 @@ class DirectAurora(object):
                 print(f"{'Bulk DC Voltage':>29}: {result.get('bulk_dc_voltage', 'no data')}")
                 print(f"{'Bulk Mid Voltage':>29}: {result.get('bulk_mid_voltage', 'no data')}")
                 print()
-                print(f"{'Insulation Resistance':>29}: {result.get('isolation_resistance', 'no data')}")
+                print(f"{'Isolation Resistance':>29}: {result.get('isolation_resistance', 'no data')}")
                 print()
-                print(f"{'zLeakage Current(Inverter)zz':>29}: {result.get('leak_current', 'no data')}")
+                print(f"{'Leakage Current(Inverter)':>29}: {result.get('leak_current', 'no data')}")
                 print(f"{'Leakage Current(Booster)':>29}: {result.get('leak_dc_current', 'no data')}")
 
     def status(self):
@@ -2495,14 +2495,15 @@ class DirectAurora(object):
             print(f"Current inverter date-time is {timestamp_to_string(inverter_ts)}")
             print(f"    Clock error is {_error:.3f} seconds (positive is fast)")
             print()
-            print("Setting time...")
+            print("Setting inverter date-time...")
             # set the inverter time to the system time
             driver.setTime()
+            print("Successfully set inverter date-time")
             # now obtain and display the inverter time
             inverter_ts = driver.getTime()
             _error = inverter_ts - time.time()
             print()
-            print(f"Updated inverter date-time is {timestamp_to_string(inverter_ts)}")
+            print(f"Current inverter date-time is {timestamp_to_string(inverter_ts)}")
             print(f"    Clock error is {_error:.3f} seconds (positive is fast)")
 
 
