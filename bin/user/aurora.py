@@ -3,7 +3,7 @@ aurora.py
 
 A WeeWX driver for Power One Aurora inverters.
 
-Copyright (C) 2016-2023 Gary Roderick                  gjroderick<at>gmail.com
+Copyright (C) 2016-2024 Gary Roderick                  gjroderick<at>gmail.com
 
 This program is free software: you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -17,10 +17,10 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see https://www.gnu.org/licenses/.
 
-Version: 0.7.0b2                                      Date: 1 January 2024
+Version: 0.7.0                                        Date: 5 January 2024
 
 Revision History
-    28 December 2023    v0.7.0
+    5 January 2024      v0.7.0
         - now WeeWX v5 compatible
         - python v3.6 and earlier no longer supported
         - significant refactoring to move all intimate inverter knowledge out
@@ -153,7 +153,7 @@ log = logging.getLogger(__name__)
 
 # our name and version number
 DRIVER_NAME = 'Aurora'
-DRIVER_VERSION = '0.7.0b2'
+DRIVER_VERSION = '0.7.0'
 
 # config defaults
 DEFAULT_POLL_INTERVAL = 20
