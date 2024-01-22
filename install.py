@@ -10,9 +10,12 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 
                      Installer for Aurora inverter driver
 
-Version: 0.7.0                                      Date: 5 January 2024
+Version: 0.7.1                                      Date: 22January 2024
 
 Revision History
+    22 January 2024     v0.7.1
+        - change required WeeWX version to '5.0.0' to workaround
+          version_compare() shortcomings
     5 January 2024      v0.7.0
         - now requires WeeWX v5.0.0 or later
         - Python v3.6 and earlier no longer supported
@@ -40,8 +43,8 @@ import weewx
 
 from setup import ExtensionInstaller
 
-REQUIRED_WEEWX_VERSION = "5.0.0b1"
-AURORA_VERSION = "0.7.0"
+REQUIRED_WEEWX_VERSION = "5.0.0"
+AURORA_VERSION = "0.7.1"
 
 aurora_config_str = """
 [Aurora]
@@ -77,7 +80,11 @@ aurora_config = configobj.ConfigObj(StringIO(aurora_config_str))
 def version_compare(v1, v2):
     """Basic 'distutils' and 'packaging' free version comparison.
 
-    v1 and v2 are WeeWX version numbers in string format.
+    v1 and v2 are WeeWX version numbers in string format. Works for simple
+    versions only, does not work for version numbers containing 'a', 'b' and
+    'rc', eg '5.0.0rc1' ('a', 'b' and 'rc' versions will always be considered
+    greater than the same non-'a' or 'b' or 'rc' version number,
+    ie '5.0.0b2' > '5.0.0').
 
     Returns:
         0 if v1 and v2 are the same
