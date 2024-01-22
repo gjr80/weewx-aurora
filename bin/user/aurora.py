@@ -17,9 +17,11 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see https://www.gnu.org/licenses/.
 
-Version: 0.7.0                                        Date: 5 January 2024
+Version: 0.7.1                                        Date: 22 January 2024
 
 Revision History
+    22 January 2024     v0.7.1
+        - installer change only
     5 January 2024      v0.7.0
         - now WeeWX v5 compatible
         - python v3.6 and earlier no longer supported
@@ -153,7 +155,7 @@ log = logging.getLogger(__name__)
 
 # our name and version number
 DRIVER_NAME = 'Aurora'
-DRIVER_VERSION = '0.7.0'
+DRIVER_VERSION = '0.7.1'
 
 # config defaults
 DEFAULT_POLL_INTERVAL = 20

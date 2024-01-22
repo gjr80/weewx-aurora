@@ -1,3 +1,6 @@
+v0.7.1
+*   change required WeeWX version to '5.0.0' to workaround version_compare()
+    shortcomings
 v0.7.0
 *   now WeeWX v5 compatible
 *   python v3.6 and earlier no longer supported
