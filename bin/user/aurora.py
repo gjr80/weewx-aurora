@@ -17,9 +17,12 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see https://www.gnu.org/licenses/.
 
-Version: 0.7.1                                        Date: 22 January 2024
+Version: 0.7.2                                        Date: 23 January 2024
 
 Revision History
+    23 January 2024     v0.7.2
+        - refactor power and energy unit/group config to align with existing
+          WeeWX equivalents
     22 January 2024     v0.7.1
         - installer change only
     5 January 2024      v0.7.0
@@ -155,7 +158,7 @@ log = logging.getLogger(__name__)
 
 # our name and version number
 DRIVER_NAME = 'Aurora'
-DRIVER_VERSION = '0.7.1'
+DRIVER_VERSION = '0.7.2'
 
 # config defaults
 DEFAULT_POLL_INTERVAL = 20
@@ -204,33 +207,29 @@ def define_units():
     weewx.units.conversionDict['Mohm'] = {'ohm': lambda x: x * 1000000.0,
                                           'kohm': lambda x: x * 1000.0}
 
-    # set default formats and labels for kilo and megawatt hours
-    weewx.units.default_unit_format_dict['kilo_watt_hour'] = '%.1f'
-    weewx.units.default_unit_label_dict['kilo_watt_hour'] = ' kWh'
-    weewx.units.default_unit_format_dict['mega_watt_hour'] = '%.1f'
-    weewx.units.default_unit_label_dict['mega_watt_hour'] = ' MWh'
+    # set default formats and labels for megawatt hours
+    weewx.units.default_unit_format_dict['megawatt_hour'] = '%.1f'
+    weewx.units.default_unit_label_dict['megawatt_hour'] = ' MWh'
 
     # define conversion functions for energy
-    weewx.units.conversionDict['watt_hour'] = {'kilo_watt_hour': lambda x: x / 1000.0,
-                                               'mega_watt_hour': lambda x: x / 1000000.0}
-    weewx.units.conversionDict['kilo_watt_hour'] = {'watt_hour': lambda x: x * 1000.0,
-                                                    'mega_watt_hour': lambda x: x / 1000.0}
-    weewx.units.conversionDict['mega_watt_hour'] = {'watt_hour': lambda x: x * 1000000.0,
-                                                    'kilo_watt_hour': lambda x: x * 1000.0}
+    weewx.units.conversionDict['watt_hour'] = {'kilowatt_hour': lambda x: x / 1000.0,
+                                               'megawatt_hour': lambda x: x / 1000000.0}
+    weewx.units.conversionDict['kilowatt_hour'] = {'watt_hour': lambda x: x * 1000.0,
+                                                   'megawatt_hour': lambda x: x / 1000.0}
+    weewx.units.conversionDict['megawatt_hour'] = {'watt_hour': lambda x: x * 1000000.0,
+                                                   'kilowatt_hour': lambda x: x * 1000.0}
 
-    # set default formats and labels for kilo and mega watts
-    weewx.units.default_unit_format_dict['kilo_watt'] = '%.1f'
-    weewx.units.default_unit_label_dict['kilo_watt'] = ' kW'
-    weewx.units.default_unit_format_dict['mega_watt'] = '%.1f'
-    weewx.units.default_unit_label_dict['mega_watt'] = ' MW'
+    # set default formats and labels for mega watts
+    weewx.units.default_unit_format_dict['megawatt'] = '%.1f'
+    weewx.units.default_unit_label_dict['megawatt'] = ' MW'
 
     # define conversion functions for energy
-    weewx.units.conversionDict['watt'] = {'kilo_watt': lambda x: x / 1000.0,
-                                          'mega_watt': lambda x: x / 1000000.0}
-    weewx.units.conversionDict['kilo_watt'] = {'watt': lambda x: x * 1000.0,
-                                               'mega_watt': lambda x: x / 1000.0}
-    weewx.units.conversionDict['mega_watt'] = {'watt': lambda x: x * 1000000.0,
-                                               'kilo_watt': lambda x: x * 1000.0}
+    weewx.units.conversionDict['watt'] = {'kilowatt': lambda x: x / 1000.0,
+                                          'megawatt': lambda x: x / 1000000.0}
+    weewx.units.conversionDict['kilowatt'] = {'watt': lambda x: x * 1000.0,
+                                              'megawatt': lambda x: x / 1000.0}
+    weewx.units.conversionDict['megawatt'] = {'watt': lambda x: x * 1000000.0,
+                                              'kilowatt': lambda x: x * 1000.0}
 
     # assign database fields to groups
     weewx.units.obs_group_dict['string1Voltage'] = 'group_volt'
