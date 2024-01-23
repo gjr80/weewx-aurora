@@ -1,3 +1,6 @@
+v0.7.2
+*   refactor power and energy unit/group config to align with existing WeeWX
+    equivalents
 v0.7.1
 *   change required WeeWX version to '5.0.0' to workaround version_compare()
     shortcomings

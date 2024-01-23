@@ -17,9 +17,11 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see http://www.gnu.org/licenses/.
 
-Version: 0.7.1                                        Date: 22 January 2024
+Version: 0.7.2                                        Date: 23 January 2024
 
 Revision History
+    23 January 2024     v0.7.2
+        - bumped version number only
     22 January 2024     v0.7.1
         - bumped version number only
     5 January 2024      v0.7.0
@@ -55,7 +57,7 @@ result in much space being saved as most of the space is taken up by the
 primary key indexes (type "dateTime").
 ============================================================================
 """
-AURORA_SCHEMA_VERSION = '0.7.1'
+AURORA_SCHEMA_VERSION = '0.7.2'
 
 # define schema for archive table
 aurora_schema = [
