@@ -1,26 +1,26 @@
 Aurora driver extension
 
-A weeWX driver for Power One Aurora inverters.
+A WeeWX driver for Power One Aurora inverters.
 
 
 Description
 
-The Aurora driver extension allows weeWX to interact with a Power One Aurora
+The Aurora driver extension allows WeeWX to interact with a Power One Aurora
 inverter to obtain and archive solar PV data from the inverter. The driver
 interacts with the inverter over a serial connection using the Power One Aurora
 Inverter Series Communications Protocol to query the inverter state. The driver
-maps various inverter readings to weeWX loop packet fields and emits loop
+maps various inverter readings to WeeWX loop packet fields and emits loop
 packets at a user configurable rate.
 
 The Aurora driver extension consists of:
-- a weeWX driver for the Power One Aurora inverter
-- a custom weeWX database schema to support the Aurora inverter
+- a WeeWX driver for the Power One Aurora inverter
+- a custom WeeWX database schema to support the Aurora inverter
 
 
 Pre-Requisites
 
 The Aurora driver requires:
--   weeWX v4.0.0 or greater, and
+-   WeeWX v4.0.0 or greater, and
 -   the python-serial package
 
 
@@ -29,7 +29,7 @@ Installation Instructions
 Installation using the wee_extension utility
 
 Note:   Symbolic names are used below to refer to some file location on the
-weeWX system. These symbolic names allow a common name to be used to refer to
+WeeWX system. These symbolic names allow a common name to be used to refer to
 a directory that may be different from system to system. The following symbolic
 names are used below:
 
@@ -38,14 +38,14 @@ names are used below:
 
 1.  Download the latest Aurora driver extension from the Aurora driver releases
 page (https://github.com/gjr80/weewx-aurora/releases) into a directory
-accessible from the weeWX machine.
+accessible from the WeeWX machine.
 
     $ wget -P $DOWNLOAD_ROOT https://github.com/gjr80/weewx-aurora/releases/download/v0.7.2/aurora-0.7.2.tar.gz
 
 	where $DOWNLOAD_ROOT is the path to the directory where the Aurora driver
     extension is to be downloaded.
 
-2.  Stop weeWX if it is running:
+2.  Stop WeeWX if it is running:
 
     $ sudo /etc/init.d/weewx stop
 
@@ -70,13 +70,13 @@ wee_extension utility:
 
     $ sudo wee_config --reconfigure
 
-5.  Run weeWX directly (http://weewx.com/docs/usersguide.htm#Running_directly)
+5.  Run WeeWX directly (http://weewx.com/docs/usersguide.htm#Running_directly)
 and confirm that loop packets and archive records are being generated and the
 data is appears valid:
 
     $ sudo weewxd weewx.conf
 
-    Note: Depending on the present working directory and your weeWX
+    Note: Depending on the present working directory and your WeeWX
     installation type it may be necessary to prefix weewxd and weewx.conf with
     appropriate paths.
 
@@ -163,11 +163,11 @@ data is appears valid:
         358.547821045, timeDate: 1517637331, usUnits: 1
 
     The above indicates that the inverter is being interrogated, valid data
-    being received and weeWX is constructing archive records from the
+    being received and WeeWX is constructing archive records from the
     accumulated loop data.
 
-6.  If all appears correct when run directly you can stop weeWX by entering
-Ctl-Z in the terminal and you can now start weeWX as a daemon:
+6.  If all appears correct when run directly you can stop WeeWX by entering
+Ctl-Z in the terminal and you can now start WeeWX as a daemon:
 
         $ sudo /etc/init.d/weewx start
 
@@ -175,14 +175,14 @@ Ctl-Z in the terminal and you can now start weeWX as a daemon:
 
         $ sudo service weewx start
 
-7.  The weeWX log should be monitored to verify archive records are being
+7.  The WeeWX log should be monitored to verify archive records are being
 saved.
 
 Manual installation
 
 1.  Download the latest Aurora driver extension from the Aurora driver releases
 page (https://github.com/gjr80/weewx-aurora/releases) into a directory
-accessible from the weeWX machine.
+accessible from the WeeWX machine.
 
     $ wget -P $DOWNLOAD_ROOT https://github.com/gjr80/weewx-aurora/releases/download/v0.7.2/aurora-0.7.2.tar.gz
 
@@ -190,7 +190,7 @@ accessible from the weeWX machine.
 	where $DOWNLOAD_ROOT is the path to the directory where the Aurora driver
     extension is to be downloaded.
 
-2.  Stop weeWX if it is running:
+2.  Stop WeeWX if it is running:
 
     $ sudo /etc/init.d/weewx stop
 
@@ -245,13 +245,13 @@ model, port and address:
 
 9.  Save weewx.conf.
 
-10.  Run weeWX directly (http://weewx.com/docs/usersguide.htm#Running_directly)
+10.  Run WeeWX directly (http://weewx.com/docs/usersguide.htm#Running_directly)
 and confirm that loop packets and archive records are being generated and the
 data is appears valid:
 
     $ sudo weewxd weewx.conf
 
-    Note: Depending on the present working directory and your weeWX
+    Note: Depending on the present working directory and your WeeWX
     installation type it may be necessary to prefix weewxd and weewx.conf with
     appropriate paths.
 
@@ -338,11 +338,11 @@ data is appears valid:
         358.547821045, timeDate: 1517637331, usUnits: 1
 
     The above indicates that the inverter is being interrogated, valid data
-    being received and weeWX is constructing archive records from the
+    being received and WeeWX is constructing archive records from the
     accumulated loop data.
 
-11.  If all appears correct when run directly you can stop weeWX by entering
-Ctl-Z in the terminal and you can now start weeWX as a daemon:
+11.  If all appears correct when run directly you can stop WeeWX by entering
+Ctl-Z in the terminal and you can now start WeeWX as a daemon:
 
         $ sudo /etc/init.d/weewx start
 
@@ -350,7 +350,7 @@ Ctl-Z in the terminal and you can now start weeWX as a daemon:
 
         $ sudo service weewx start
 
-12.  The weeWX log should be monitored to verify archive records are being
+12.  The WeeWX log should be monitored to verify archive records are being
 saved.
 
 

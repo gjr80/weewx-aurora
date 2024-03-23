@@ -1,41 +1,41 @@
 # Aurora driver extension #
 
-A [weeWX](http://weewx.com/ "WeeWX - Open source software for your weather station") driver for Power One Aurora inverters.
+A [WeeWX](http://weewx.com/ "WeeWX - Open source software for your weather station") driver for Power One Aurora inverters.
 
 ## Description ##
 
-The *Aurora driver* extension allows weeWX to interact with a Power One Aurora inverter to obtain and archive solar PV data from the inverter. The driver interacts with the inverter over a serial connection using the Power One Aurora Inverter Series Communications Protocol to query the inverter state. The driver maps various inverter readings to weeWX loop packet fields and emits loop packets at a user configurable rate.
+The *Aurora driver* extension allows WeeWX to interact with a Power One Aurora inverter to obtain and archive solar PV data from the inverter. The driver interacts with the inverter over a serial connection using the Power One Aurora Inverter Series Communications Protocol to query the inverter state. The driver maps various inverter readings to WeeWX loop packet fields and emits loop packets at a user configurable rate.
 
 The *Aurora driver* extension consists of:
 
-- a weeWX driver for the Power One Aurora inverter
-- a custom weeWX database schema to support the Aurora inverter
+- a WeeWX driver for the Power One Aurora inverter
+- a custom WeeWX database schema to support the Aurora inverter
 
 ## Pre-Requisites ##
 
 The *Aurora driver* extension requires:
 
--   weeWX v3.7.0 or greater
+-   WeeWX v3.7.0 or greater
 -   the *python-serial* package
 
 ## Installation ##
 
 The *Aurora driver* extension can be installed manually or automatically using the [*wee_extension* utility](http://weewx.com/docs/utilities.htm#wee_extension_utility). The preferred method of installation is through the use of *wee_extension*.
 
-**Note:** Symbolic names are used below to refer to some file location on the weeWX system. These symbolic names allow a common name to be used to refer to a directory that may be different from system to system. The following symbolic names are used below:
+**Note:** Symbolic names are used below to refer to some file location on the WeeWX system. These symbolic names allow a common name to be used to refer to a directory that may be different from system to system. The following symbolic names are used below:
 
 -   *$DOWNLOAD_ROOT*. The path to the directory containing the downloaded *Aurora driver* extension.
--   *$BIN_ROOT*. The path to the directory where weeWX executables are located. This directory varies depending on weeWX installation method. Refer to [where to find things](http://weewx.com/docs/usersguide.htm#Where_to_find_things "where to find things") in the [weeWX User's Guide](http://weewx.com/docs/usersguide.htm "User's Guide to the weeWX Weather System") for further information.
+-   *$BIN_ROOT*. The path to the directory where WeeWX executables are located. This directory varies depending on WeeWX installation method. Refer to [where to find things](http://weewx.com/docs/usersguide.htm#Where_to_find_things "where to find things") in the [WeeWX User's Guide](http://weewx.com/docs/usersguide.htm "User's Guide to the WeeWX Weather System") for further information.
 
 ### Installation using the wee_extension utility ###
 
-1.  Download the latest *Aurora driver* extension from the *Aurora driver* extension [releases page](https://github.com/gjr80/weewx-aurora/releases) into a directory accessible from the weeWX machine.
+1.  Download the latest *Aurora driver* extension from the *Aurora driver* extension [releases page](https://github.com/gjr80/weewx-aurora/releases) into a directory accessible from the WeeWX machine.
 
         $ wget -P $DOWNLOAD_ROOT https://github.com/gjr80/weewx-aurora/releases/download/v0.7.2/aurora-0.7.2.tar.gz
 
     where *$DOWNLOAD_ROOT* is the path to the directory where the *Aurora driver* extension is to be downloaded.
 
-1.  Stop weeWX:
+1.  Stop WeeWX:
 
         $ sudo /etc/init.d/weewx stop
 
@@ -59,11 +59,11 @@ The *Aurora driver* extension can be installed manually or automatically using t
 
         $ sudo wee_config --reconfigure
 
-1.  [Run weeWX directly](http://weewx.com/docs/usersguide.htm#Running_directly) and confirm that loop packets and archive records are being generated and the data is appears valid:
+1.  [Run WeeWX directly](http://weewx.com/docs/usersguide.htm#Running_directly) and confirm that loop packets and archive records are being generated and the data is appears valid:
 
         $ sudo weewxd weewx.conf
 
-    **Note:** Depending on the present working directory and your weeWX installation type it may be necessary to prefix *weewxd* and *weewx.conf* with appropriate paths.
+    **Note:** Depending on the present working directory and your WeeWX installation type it may be necessary to prefix *weewxd* and *weewx.conf* with appropriate paths.
 
     You should now see something like below with a series of loop packets (indicated by *LOOP:* preceding each line) every 10 seconds and archive records (indicated by *REC:* preceding each line) every archive interval seconds:   
     
@@ -74,9 +74,9 @@ The *Aurora driver* extension can be installed manually or automatically using t
         REC:    2018-02-03 15:55:00 AEST (1517637300) boosterTemp: 96.5136605835, bulkdcVoltage: 381.475579834, bulkmidVoltage: 199.52755127, bulkVoltage: 382.982391357, dateTime: 1517637300.0, dayEnergy: 8634.4, energy: 5.0, gridavgVoltage: 243.495370483, gridCurrent: 2.02964129448, griddcFrequency: 50.0747131348, griddcVoltage: 242.812478638, gridFrequency: 50.0753143311, gridnVoltage: 305.237585449, gridPower: 493.501000977, gridVoltage: 242.841641235, interval: 5, inverterTemp: 95.6761741638, isoResistance: 6.53649520874, leakCurrent: 0.00441941944882, leakdcCurrent: 0.0, string1Current: 0.755330586433, string1Power: 252.531326294, string1Voltage: 358.532122803, string2Current: 0.767897939682, string2Power: 256.399765015, string2Voltage: 359.328808594, timeDate: 1517637281.0, usUnits: 1
         LOOP:   2018-02-03 15:55:30 AEST (1517637330) boosterTemp: 96.5409767151, bulkdcVoltage: 382.354553223, bulkmidVoltage: 199.025268555, bulkVoltage: 382.982391357, dateTime: 1517637330, dayEnergy: 8641, energy: 1, gridavgVoltage: 243.310913086, gridCurrent: 2.0580675602, griddcFrequency: 50.1152648926, griddcVoltage: 242.471786499, gridFrequency: 50.1152648926, gridnVoltage: 305.666992188, gridPower: 500.479614258, gridVoltage: 242.81262207, inverterTemp: 95.7321769714, isoResistance: 6.53649520874, leakCurrent: 0.00441941944882, leakdcCurrent: 0.00441941944882, string1Current: 0.758875250816, string1Power: 255.55909729, string1Voltage: 358.920654297, string2Current: 0.778209626675, string2Power: 260.399230957, string2Voltage: 358.547821045, timeDate: 1517637331, usUnits: 1
 
-    The above indicates that the inverter is being interrogated, valid data being received and weeWX is constructing archive records from the accumulated loop data.
+    The above indicates that the inverter is being interrogated, valid data being received and WeeWX is constructing archive records from the accumulated loop data.
 
-1.  If all appears correct when run directly you can stop weeWX by entering *Ctl-Z* in the terminal and you can now start weeWX as a daemon:
+1.  If all appears correct when run directly you can stop WeeWX by entering *Ctl-Z* in the terminal and you can now start WeeWX as a daemon:
     
         $ sudo /etc/init.d/weewx start
     
@@ -84,17 +84,17 @@ The *Aurora driver* extension can be installed manually or automatically using t
 
         $ sudo service weewx start
 
-1.  The weeWX log should be monitored to verify archive records are being saved.
+1.  The WeeWX log should be monitored to verify archive records are being saved.
 
 ### Manual installation ###
 
-1.  Download the latest *Aurora driver* extension from the *Aurora driver* extension [releases page](https://github.com/gjr80/weewx-aurora/releases) into a directory accessible from the weeWX machine.
+1.  Download the latest *Aurora driver* extension from the *Aurora driver* extension [releases page](https://github.com/gjr80/weewx-aurora/releases) into a directory accessible from the WeeWX machine.
 
         $ wget -P $DOWNLOAD_ROOT https://github.com/gjr80/weewx-aurora/releases/download/v0.7.2/aurora-0.7.2.tar.gz
 
     where *$DOWNLOAD_ROOT* is the path to the directory where the *Aurora driver* extension is to be downloaded.
 
-1.  Stop weeWX:
+1.  Stop WeeWX:
 
         $ sudo /etc/init.d/weewx stop
 
@@ -148,11 +148,11 @@ The *Aurora driver* extension can be installed manually or automatically using t
 
 1.  Save *weewx.conf*.
 
-1.  [Run weeWX directly](http://weewx.com/docs/usersguide.htm#Running_directly) and confirm that loop packets and archive records are being generated and the data is appears valid:
+1.  [Run WeeWX directly](http://weewx.com/docs/usersguide.htm#Running_directly) and confirm that loop packets and archive records are being generated and the data is appears valid:
 
         $ sudo weewxd weewx.conf
 
-    **Note:** Depending on the present working directory and your weeWX installation type it may be necessary to prefix *weewxd* and *weewx.conf* with appropriate paths.
+    **Note:** Depending on the present working directory and your WeeWX installation type it may be necessary to prefix *weewxd* and *weewx.conf* with appropriate paths.
 
     You should now see something like below with a series of loop packets (indicated by *LOOP:* preceding each line) every 10 seconds and archive records (indicated by *REC:* preceding each line) every archive interval seconds:   
     
@@ -163,9 +163,9 @@ The *Aurora driver* extension can be installed manually or automatically using t
         REC:    2018-02-03 15:55:00 AEST (1517637300) boosterTemp: 96.5136605835, bulkdcVoltage: 381.475579834, bulkmidVoltage: 199.52755127, bulkVoltage: 382.982391357, dateTime: 1517637300.0, dayEnergy: 8634.4, energy: 5.0, gridavgVoltage: 243.495370483, gridCurrent: 2.02964129448, griddcFrequency: 50.0747131348, griddcVoltage: 242.812478638, gridFrequency: 50.0753143311, gridnVoltage: 305.237585449, gridPower: 493.501000977, gridVoltage: 242.841641235, interval: 5, inverterTemp: 95.6761741638, isoResistance: 6.53649520874, leakCurrent: 0.00441941944882, leakdcCurrent: 0.0, string1Current: 0.755330586433, string1Power: 252.531326294, string1Voltage: 358.532122803, string2Current: 0.767897939682, string2Power: 256.399765015, string2Voltage: 359.328808594, timeDate: 1517637281.0, usUnits: 1
         LOOP:   2018-02-03 15:55:30 AEST (1517637330) boosterTemp: 96.5409767151, bulkdcVoltage: 382.354553223, bulkmidVoltage: 199.025268555, bulkVoltage: 382.982391357, dateTime: 1517637330, dayEnergy: 8641, energy: 1, gridavgVoltage: 243.310913086, gridCurrent: 2.0580675602, griddcFrequency: 50.1152648926, griddcVoltage: 242.471786499, gridFrequency: 50.1152648926, gridnVoltage: 305.666992188, gridPower: 500.479614258, gridVoltage: 242.81262207, inverterTemp: 95.7321769714, isoResistance: 6.53649520874, leakCurrent: 0.00441941944882, leakdcCurrent: 0.00441941944882, string1Current: 0.758875250816, string1Power: 255.55909729, string1Voltage: 358.920654297, string2Current: 0.778209626675, string2Power: 260.399230957, string2Voltage: 358.547821045, timeDate: 1517637331, usUnits: 1
 
-    The above indicates that the inverter is being interrogated, valid data being received and weeWX is constructing archive records from the accumulated loop data.
+    The above indicates that the inverter is being interrogated, valid data being received and WeeWX is constructing archive records from the accumulated loop data.
 
-1.  If all appears correct when run directly you can stop weeWX by entering *Ctl-Z* in the terminal and you can now start weeWX as a daemon:
+1.  If all appears correct when run directly you can stop WeeWX by entering *Ctl-Z* in the terminal and you can now start WeeWX as a daemon:
     
         $ sudo /etc/init.d/weewx start
     
@@ -173,7 +173,7 @@ The *Aurora driver* extension can be installed manually or automatically using t
 
         $ sudo service weewx start
 
-1.  The weeWX log should be monitored to verify archive records are being saved.
+1.  The WeeWX log should be monitored to verify archive records are being saved.
 
 ## Support ##
 
