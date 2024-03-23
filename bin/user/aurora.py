@@ -160,7 +160,7 @@ log = logging.getLogger(__name__)
 
 # our name and version number
 DRIVER_NAME = 'Aurora'
-DRIVER_VERSION = '0.7.2'
+DRIVER_VERSION = '0.7.3'
 
 # config defaults
 DEFAULT_POLL_INTERVAL = 20
