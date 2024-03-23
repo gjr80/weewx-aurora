@@ -1,3 +1,5 @@
+v0.7.3
+*   fix incorrect exception name
 v0.7.2
 *   refactor power and energy unit/group config to align with existing WeeWX
     equivalents

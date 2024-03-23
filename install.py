@@ -10,9 +10,11 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 
                      Installer for Aurora inverter driver
 
-Version: 0.7.2                                      Date: 23 January 2024
+Version: 0.7.3                                      Date: 23 March 2024
 
 Revision History
+    23 March 2024       v0.7.3
+        - bumped version number only
     23 January 2024     v0.7.2
         - bumped version number only
     22 January 2024     v0.7.1
