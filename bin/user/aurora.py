@@ -17,9 +17,11 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see https://www.gnu.org/licenses/.
 
-Version: 0.7.2                                        Date: 23 January 2024
+Version: 0.7.3                                        Date: 23 March 2024
 
 Revision History
+    23 March 2024       v0.7.3
+        - fix incorrect exception name
     23 January 2024     v0.7.2
         - refactor power and energy unit/group config to align with existing
           WeeWX equivalents
@@ -643,7 +645,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         # WeeWxIOError raised if the inverter is asleep
         try:
             _response = self.inverter.set_time(_ts)
-        except weewx.WeeWXError as e:
+        except weewx.WeeWXIOError as e:
             raise NotImplementedError(e)
         except Exception as e:
             # some other exception occurred, log it and raise it
