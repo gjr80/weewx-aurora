@@ -3,7 +3,7 @@ aurora_schema.py
 
 A WeeWX schema for use with the weewx-aurora driver and an Aurora inverter.
 
-Copyright (C) 2016-2024 Gary Roderick                  gjroderick<at>gmail.com
+Copyright (C) 2016-2025 Gary Roderick                  gjroderick<at>gmail.com
 
 This program is free software: you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -17,9 +17,13 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see http://www.gnu.org/licenses/.
 
-Version: 0.7.2                                        Date: 23 January 2024
+Version: 0.7.4                                        Date: 28 March 2025
 
 Revision History
+    28 March 2025     v0.7.4
+        - bumped version number only
+    23 March 2024     v0.7.3
+        - bumped version number only
     23 January 2024     v0.7.2
         - bumped version number only
     22 January 2024     v0.7.1
@@ -57,7 +61,7 @@ result in much space being saved as most of the space is taken up by the
 primary key indexes (type "dateTime").
 ============================================================================
 """
-AURORA_SCHEMA_VERSION = '0.7.2'
+AURORA_SCHEMA_VERSION = '0.7.4'
 
 # define schema for archive table
 aurora_schema = [

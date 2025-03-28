@@ -10,9 +10,11 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 
                      Installer for Aurora inverter driver
 
-Version: 0.7.3                                      Date: 23 March 2024
+Version: 0.7.4                                      Date: 28 March 2025
 
 Revision History
+    28 March 2025       v0.7.4
+        - bumped version number only
     23 March 2024       v0.7.3
         - bumped version number only
     23 January 2024     v0.7.2
@@ -48,7 +50,7 @@ import weewx
 from setup import ExtensionInstaller
 
 REQUIRED_WEEWX_VERSION = "5.0.0"
-AURORA_VERSION = "0.7.2"
+AURORA_VERSION = "0.7.4"
 
 aurora_config_str = """
 [Aurora]

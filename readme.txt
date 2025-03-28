@@ -40,7 +40,7 @@ names are used below:
 page (https://github.com/gjr80/weewx-aurora/releases) into a directory
 accessible from the WeeWX machine.
 
-    $ wget -P $DOWNLOAD_ROOT https://github.com/gjr80/weewx-aurora/releases/download/v0.7.3/aurora-0.7.3.tar.gz
+    $ wget -P $DOWNLOAD_ROOT https://github.com/gjr80/weewx-aurora/releases/download/v0.7.4/aurora-0.7.4.tar.gz
 
 	where $DOWNLOAD_ROOT is the path to the directory where the Aurora driver
     extension is to be downloaded.
@@ -56,15 +56,15 @@ accessible from the WeeWX machine.
 3.  Install the Aurora driver extension downloaded at step 1 using the
 wee_extension utility:
 
-    $ wee_extension --install=$DOWNLOAD_ROOT/aurora-0.7.3.tar.gz
+    $ wee_extension --install=$DOWNLOAD_ROOT/aurora-0.7.4.tar.gz
 
     This will result in output similar to the following:
 
-        Request to install '/var/tmp/aurora-0.7.3.tar.gz'
-        Extracting from tar archive /var/tmp/aurora-0.7.3.tar.gz
+        Request to install '/var/tmp/aurora-0.7.4.tar.gz'
+        Extracting from tar archive /var/tmp/aurora-0.7.4.tar.gz
         Saving installer file to /home/weewx/bin/user/installer/aurora
         Saved configuration dictionary. Backup copy at /home/weewx/weewx.conf.20180128124410
-        Finished installing extension '/var/tmp/aurora-0.7.3.tar.gz'
+        Finished installing extension '/var/tmp/aurora-0.7.4.tar.gz'
 
 4.  Select and configure the driver:
 
@@ -184,7 +184,7 @@ Manual installation
 page (https://github.com/gjr80/weewx-aurora/releases) into a directory
 accessible from the WeeWX machine.
 
-    $ wget -P $DOWNLOAD_ROOT https://github.com/gjr80/weewx-aurora/releases/download/v0.7.3/aurora-0.7.3.tar.gz
+    $ wget -P $DOWNLOAD_ROOT https://github.com/gjr80/weewx-aurora/releases/download/v0.7.4/aurora-0.7.4.tar.gz
 
 
 	where $DOWNLOAD_ROOT is the path to the directory where the Aurora driver
@@ -200,7 +200,7 @@ accessible from the WeeWX machine.
 
 3.  Unpack the extension as follows:
 
-    $ tar xvfz aurora-0.7.3.tar.gz
+    $ tar xvfz aurora-0.7.4.tar.gz
 
 4.  Copy files from within the resulting directory as follows:
 
