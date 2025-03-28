@@ -17,9 +17,11 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see https://www.gnu.org/licenses/.
 
-Version: 0.7.3                                        Date: 23 March 2024
+Version: 0.7.4                                        Date: 28 March 2025
 
 Revision History
+    28 March 2025       v0.7.4
+        - fix incorrect exception name
     23 March 2024       v0.7.3
         - fix incorrect exception name
     23 January 2024     v0.7.2
@@ -160,7 +162,7 @@ log = logging.getLogger(__name__)
 
 # our name and version number
 DRIVER_NAME = 'Aurora'
-DRIVER_VERSION = '0.7.3'
+DRIVER_VERSION = '0.7.4'
 
 # config defaults
 DEFAULT_POLL_INTERVAL = 20
@@ -645,7 +647,7 @@ class AuroraDriver(weewx.drivers.AbstractDevice):
         # WeeWxIOError raised if the inverter is asleep
         try:
             _response = self.inverter.set_time(_ts)
-        except weewx.WeeWXIOError as e:
+        except weewx.WeeWxIOError as e:
             raise NotImplementedError(e)
         except Exception as e:
             # some other exception occurred, log it and raise it
